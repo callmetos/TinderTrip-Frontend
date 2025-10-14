@@ -89,6 +89,7 @@ export default function SignUpScreen() {
              await saveDisplayName(display_name);
              await savePassword(password);
              await saveVerifyRegister(true);
+             
 
              router.replace("/verify");
     } catch (err) {
@@ -205,4 +206,5 @@ return (
     </View>
   
   </KeyboardAwareScrollView>
-)};
+)
+};

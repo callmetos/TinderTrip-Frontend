@@ -11,7 +11,7 @@
     expense: "#E74C3C",
     card: "#FFFFFF",
     shadow: "#000000",
-    creem: "#f9f4ec",
+    creem: "#fdfaf4ff",
   };
   
   const forestTheme = {
@@ -26,7 +26,7 @@
     expense: "#E74C3C",
     card: "#FFFFFF",
     shadow: "#000000",
-    creem: "#f9f4ec",
+    creem: "#fdfaf4ff",
   };
   
   const purpleTheme = {
@@ -41,7 +41,7 @@
     expense: "#E74C3C",
     card: "#FFFFFF",
     shadow: "#000000",
-    creem: "#f9f4ec",
+    creem: "#fdfaf4ff",
   };
   
   const oceanTheme = {
@@ -55,7 +55,7 @@
     income: "#26A69A",
     card: "#FFFFFF",
     shadow: "#000000",
-    creem: "#f9f4ec",
+    creem: "#fdfaf4ff",
   };
   
   export const THEMES = {

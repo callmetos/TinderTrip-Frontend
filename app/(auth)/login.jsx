@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Alert, Dimensions, Image, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { styles } from '../../assets/styles/auth-styles.js';
@@ -53,7 +53,7 @@ export default function LoginScreen() {
       
       // ใช้ callback URL ที่แตกต่างกันตาม platform
       const redirectUrl = Platform.OS === 'web' 
-        ? 'http://localhost:8081/callback' 
+        ? 'http://192.168.1.37:8081/callback' 
         : 'mobileapp://callback';
       
       console.log('Using expo-web-browser for native OAuth');
@@ -69,7 +69,7 @@ export default function LoginScreen() {
       console.log('Auth URL:', response.auth_url);
       
       // สร้าง URL สำหรับหน้า google-redirect
-      const googleRedirectUrl = `http://localhost:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
+      const googleRedirectUrl = `http://192.168.1.37:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
       console.log('Google Redirect URL:', googleRedirectUrl);
       
       const result = await WebBrowser.openAuthSessionAsync(

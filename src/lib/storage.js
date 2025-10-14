@@ -6,6 +6,7 @@ const KEYS = {
   DISPLAY_NAME: 'DISPLAY_NAME',
   PASSWORD: 'PASSWORD',
   VERIFY_REGISTER: 'VERIFY_REGISTER',
+  OTP: 'OTP'
 };
 
 export async function saveToken(token) {
@@ -83,4 +84,20 @@ export async function loadPassword() {
 
 export async function clearPassword() {
   await AsyncStorage.removeItem(KEYS.PASSWORD);
+}
+
+export async function saveOTP(otp) {
+  if (otp) {
+    await AsyncStorage.setItem(KEYS.OTP, otp);
+  } else {
+    await AsyncStorage.removeItem(KEYS.OTP);
+  }
+}
+
+export async function loadOTP() {
+  return AsyncStorage.getItem(KEYS.OTP);
+}
+
+export async function clearOTP() {
+  await AsyncStorage.removeItem(KEYS.OTP);
 }

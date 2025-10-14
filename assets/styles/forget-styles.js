@@ -102,12 +102,27 @@ export const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
+  passwordTitle: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: COLORS.shadow,
+    marginBottom: 20,
+    textAlign: "left",
+  },
   verificationText: {
     fontSize: 16,
     fontWeight: "400",
     color: COLORS.shadow,
     marginBottom: 20,
     textAlign: "center",
+    lineHeight: 22,
+  },
+  passwordText: {
+    fontSize: 16,
+    fontWeight: "400",
+    color: COLORS.shadow,
+    marginBottom: 20,
+    textAlign: "left",
     lineHeight: 22,
   },
   formContainer: {
@@ -127,7 +142,7 @@ export const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   verificationInput: {
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.creem,
     borderRadius: 12,
     padding: 15,
     marginBottom: 16,
@@ -136,7 +151,7 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.text,
     width: "100%",
-    textAlign: "center",
+    textAlign: "left",
     letterSpacing: 2,
   },
   resendLink: {

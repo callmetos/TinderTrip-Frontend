@@ -56,8 +56,23 @@ export async function verifyEmail(email, otp, password, display_name) {
 export async function verifyOPT(email, otp) {
   const res = await api.post('/api/v1/auth/verify-otp', {
     email,
-    otp,
+    otp
+  });
+  return res.data;
+}
 
+export async function forgetPassword(email) {
+  const res = await api.post('/api/v1/auth/forgot-password', {
+    email
+  });
+  return res.data;
+}
+
+export async function resetPassword(email, otp, password) {
+  const res = await api.post('/api/v1/auth/reset-password', {
+    email,
+    otp,
+    password
   });
   return res.data;
 }

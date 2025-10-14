@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Image,
   Text,
@@ -12,8 +12,9 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { styles } from "../../assets/styles/forget-styles";
 import { COLORS } from "../../color/colors";
 import { resendVerification, verifyEmail } from "../../src/api/auth.service.js";
-import { clearPassword, clearVerifyRegister, loadDisplayName, loadEmail, loadPassword, loadVerifyRegister, saveToken } from "../../src/lib/storage.js";
+import { clearPassword, clearVerifyRegister, loadDisplayName, loadEmail, loadPassword, loadVerifyRegister, saveOTP, saveToken } from "../../src/lib/storage.js";
 import { Notification } from "../../src/utils/Notification.jsx";
+
 
 export default function Verification() {
   const [email, setEmail] = useState("");
@@ -29,6 +30,7 @@ export default function Verification() {
   const [isResending, setIsResending] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [isVerifyRegister, setIsVerifyRegister] = useState(false);
+  const [otp, setOTP] = useState("")
 
   // โหลด email, display_name, password และ verify_register จาก AsyncStorage เมื่อ component mount
   useEffect(() => {
@@ -37,6 +39,7 @@ export default function Verification() {
       const storedDisplayName = await loadDisplayName();
       const storedPassword = await loadPassword();
       const storedVerifyRegister = await loadVerifyRegister();
+      const storedOTP = await saveOTP();
       
       if (storedEmail) {
         setEmail(storedEmail);
@@ -53,6 +56,10 @@ export default function Verification() {
       
       if (storedVerifyRegister !== null) {
         setIsVerifyRegister(storedVerifyRegister);
+      }
+
+      if (storedOTP) {
+        setOTP(storedOTP);
       }
     };
     loadStoredData();
@@ -108,8 +115,14 @@ export default function Verification() {
         }, 2000);
         
       } else {
+
+        await saveOTP(code);
+
+        router.replace("/reset-password")
+
         console.log("Using different API for non-registration verification");
         setError("This verification type is not implemented yet");
+
       }
       
     } catch (err) {
@@ -149,6 +162,7 @@ export default function Verification() {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+
   return (
     <KeyboardAwareScrollView
       style={{ flex: 1 }}
@@ -161,8 +175,10 @@ export default function Verification() {
         <View style={styles.content}>
           <View style={styles.header}>
             <View style={styles.headerLeft}>
-              <Ionicons name="chevron-back" size={32} color={COLORS.redwine} />
-              <Text>Verify email address</Text>
+              <TouchableOpacity onPress={() => router.push('/verify')} >
+               <Ionicons name="chevron-back" size={32} color={COLORS.redwine}  />
+             </TouchableOpacity>              
+             <Text>Verify email address</Text>
             </View>
           </View>
 
