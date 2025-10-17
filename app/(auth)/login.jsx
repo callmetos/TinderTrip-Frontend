@@ -9,11 +9,14 @@ import { styles } from '../../assets/styles/auth-styles.js';
 import { COLORS } from '../../color/colors.js';
 import { getGoogleAuthUrl, login } from '../../src/api/auth.service';
 
+
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const SHEET_RATIO = 0.75;
   const { height } = Dimensions.get("window");
@@ -35,11 +38,23 @@ export default function LoginScreen() {
       const response = await login(email, password);
       console.log('Login successful:', response);
       
-      await AsyncStorage.setItem('USER_DATA', JSON.stringify(response.user));
+      if (!response?.token) {
+        throw new Error('Login failed: token missing');
+      }
+      
+      if (response?.user) {
+        await AsyncStorage.setItem('USER_DATA', JSON.stringify(response.user));
+      }
       router.replace('/welcome');
     } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert('Login failed', error.userMessage || 'An error occurred');
+      const serverMsg = error?.response?.data?.message || error?.response?.data?.error;
+      if (serverMsg) {
+        setError(serverMsg);
+      } else if (error.errors?.[0]?.code === "form_password_incorrect") {
+        setError("Password is incorrect. Please try again.");
+      } else {
+        setError("An error occurred, Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -53,7 +68,7 @@ export default function LoginScreen() {
       
       // ใช้ callback URL ที่แตกต่างกันตาม platform
       const redirectUrl = Platform.OS === 'web' 
-        ? 'http://192.168.1.37:8081/callback' 
+        ? 'http://localhost:8081/callback' 
         : 'mobileapp://callback';
       
       console.log('Using expo-web-browser for native OAuth');
@@ -69,7 +84,7 @@ export default function LoginScreen() {
       console.log('Auth URL:', response.auth_url);
       
       // สร้าง URL สำหรับหน้า google-redirect
-      const googleRedirectUrl = `http://192.168.1.37:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
+      const googleRedirectUrl = `http://localhost:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
       console.log('Google Redirect URL:', googleRedirectUrl);
       
       const result = await WebBrowser.openAuthSessionAsync(
@@ -141,6 +156,17 @@ export default function LoginScreen() {
         fontWeight: "500",
         placeholderTextColor: "#6A2E35"
       }}>Email</Text>
+
+      {error ? (
+            <View style = {styles.errorBox}>
+              <Ionicons name="alert-circle" size={20} color = {COLORS.expense}/>
+              <Text style = {styles.errorText}>{error}</Text>
+              <TouchableOpacity onPress={() => setError("")}>
+                <Ionicons name="close" size={20} color = {COLORS.textLight}/>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+      
       <TextInput
         value={email}
         onChangeText={setEmail}
@@ -155,12 +181,21 @@ export default function LoginScreen() {
         padding:8, 
         fontWeight: "500",
         placeholderTextColor: "#6A2E35"}}>Password</Text>
-      <TextInput
-        style={styles.inputLogin}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          style={[styles.inputLogin, { paddingRight: 44 }]}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+        />
+        <TouchableOpacity
+          onPress={() => setShowPassword(v => !v)}
+          style={{ position: 'absolute', right: 50, top: 0, bottom: 15, justifyContent: 'center' }}
+        >
+          <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color={COLORS.redwine} />
+        </TouchableOpacity>
+      </View>
+
       <Link href="/forgot-password" asChild>
             <TouchableOpacity>
               <Text style = {styles.linkText}>Forget password</Text>

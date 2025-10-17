@@ -19,6 +19,8 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   
   const onSignUpPress = async () => {
@@ -165,28 +167,53 @@ return (
         onClose={() => setError("")} 
       />
 
-      <TextInput
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.inputLogin}
-        placeholder="Password"
-        placeholderTextColor="gray"
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+          style={[styles.inputLogin, { paddingRight: 44 }]}
+          placeholder="Password"
+          placeholderTextColor="gray"
+        />
+        <TouchableOpacity
+          onPress={() => setShowPassword((v) => !v)}
+          style={{ position: 'absolute', right: 50, top: 0, bottom: 15, justifyContent: 'center' }}
+        >
+          <Ionicons
+            name={showPassword ? 'eye-off' : 'eye'}
+            size={22}
+            color={COLORS.redwine}
+          />
+        </TouchableOpacity>
+      </View>
       <Notification 
         type="error" 
         message={error && (error.includes("password") || error.includes("Password") || error.includes("characters")) && !error.includes("match") ? error : null} 
         onClose={() => setError("")} 
       />
 
-      <TextInput
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-        style={styles.inputLogin}
-        placeholder="Confirm password"
-        placeholderTextColor="gray"
-      />
+      <View style={{ position: 'relative' }}>
+        <TextInput
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry={!showConfirmPassword}
+          style={[styles.inputLogin, { paddingRight: 44 }]}
+          placeholder="Confirm password"
+          placeholderTextColor="gray"
+        />
+        <TouchableOpacity
+          onPress={() => setShowConfirmPassword((v) => !v)}
+          style={{ position: 'absolute', right: 50, top: 0, bottom: 15, justifyContent: 'center' }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons
+            name={showConfirmPassword ? 'eye-off' : 'eye'}
+            size={22}
+            color={COLORS.redwine}
+          />
+        </TouchableOpacity>
+      </View>
       <Notification 
         type="error" 
         message={error && (error.includes("confirm") || error.includes("match")) ? error : null} 

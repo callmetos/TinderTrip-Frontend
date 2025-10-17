@@ -6,12 +6,23 @@ export async function login(email, password) {
   const res = await api.post('/api/v1/auth/login', { email, password });
   const response = res.data;
   
+  // ต้องมี token ถึงจะถือว่าสำเร็จ มุกกี้เพิ่ม
+  if (!response?.token) {
+    const message = response?.message || response?.error || 'Login failed: token missing';
+    const err = new Error(message);
+    // แนบ response เพื่อให้ UI แสดงข้อความผิดพลาดได้
+    err.response = { data: response };
+    throw err;
+  }
+
   // เก็บ token ลง AsyncStorage
   setAuthToken(response.token);
   await AsyncStorage.setItem('TOKEN', response.token);
   
   return response;
+
 }
+
 
 export async function getGoogleAuthUrl() {
   const res = await api.get('api/v1/auth/google');
