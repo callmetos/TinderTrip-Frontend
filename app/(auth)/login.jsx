@@ -3,11 +3,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
-import { Alert, Dimensions, Image, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { styles } from '../../assets/styles/auth-styles.js';
 import { COLORS } from '../../color/colors.js';
 import { getGoogleAuthUrl, login } from '../../src/api/auth.service';
+import { isMobile, isWeb } from '../../src/utils/platform';
 
 
 export default function LoginScreen() {
@@ -17,10 +18,6 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const SHEET_RATIO = 0.75;
-  const { height } = Dimensions.get("window");
-  const SHEET_HEIGHT = height * SHEET_RATIO;
 
   const onLoginPress = async () => {
     if (!email.trim()) {
@@ -66,66 +63,60 @@ export default function LoginScreen() {
       const response = await getGoogleAuthUrl();
       console.log('Google auth response:', response);
       
-      // ใช้ callback URL ที่แตกต่างกันตาม platform
-      const redirectUrl = Platform.OS === 'web' 
-        ? 'http://localhost:8081/callback' 
-        : 'mobileapp://callback';
-      
-      console.log('Using expo-web-browser for native OAuth');
-      
-      console.log('Platform:', Platform.OS);
-      console.log('Redirect URL:', redirectUrl);
-      console.log('Auth URL:', response.auth_url);
-      
-      console.log('Opening WebBrowser...');
-      
-      // เปิดเว็บขึ้นมาบนแอพ → หน้า google-redirect → รอ 5 วินาที → ไป Google OAuth
-      console.log(`Platform is ${Platform.OS}, opening WebBrowser to google-redirect...`);
-      console.log('Auth URL:', response.auth_url);
-      
-      // สร้าง URL สำหรับหน้า google-redirect
-      const googleRedirectUrl = `http://localhost:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
-      console.log('Google Redirect URL:', googleRedirectUrl);
-      
-      const result = await WebBrowser.openAuthSessionAsync(
-        googleRedirectUrl,
-        redirectUrl
-      );
-      
-      console.log('WebBrowser result:', result);
-      console.log('Result type:', result.type);
-      console.log('Result URL:', result.url);
-      
-      if (result.type === 'success') {
-        const url = new URL(result.url);
-        const token = url.searchParams.get('token');
-        const user_id = url.searchParams.get('user_id');
-        const email = url.searchParams.get('email');
-        const display_name = url.searchParams.get('display_name');
-        const provider = url.searchParams.get('provider');
+      if (isWeb) {
+        // สำหรับ web - เปิดในหน้าต่างเดียวกัน ไม่ต้องใช้ Safari
+        // เพิ่ม prompt=select_account เพื่อบังคับให้เลือก account
+        const url = new URL(response.auth_url);
+        url.searchParams.set('prompt', 'select_account');
+        const finalUrl = url.toString();
         
-        if (token) {
-          await AsyncStorage.setItem('TOKEN', token);
+        window.location.href = finalUrl;
+        return;
+      }
+      
+      if (isMobile) {
+        // สำหรับ mobile - ใช้ WebBrowser ผ่าน google-redirect
+        const redirectUrl = 'mobileapp://callback';
+        
+        // สร้าง URL สำหรับหน้า google-redirect พร้อมพารามิเตอร์ mobile
+        const googleRedirectUrl = `http://localhost:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}&source=mobile`;
+        
+        const result = await WebBrowser.openAuthSessionAsync(
+          googleRedirectUrl,
+          redirectUrl
+        );
+        
+        if (result.type === 'success') {
+          const url = new URL(result.url);
+          const token = url.searchParams.get('token');
+          const user_id = url.searchParams.get('user_id');
+          const email = url.searchParams.get('email');
+          const display_name = url.searchParams.get('display_name');
+          const provider = url.searchParams.get('provider');
           
-          const userData = {
-            id: user_id,
-            email: email,
-            display_name: display_name,
-            provider: provider
-          };
-          
-          await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
-          
-          console.log('Google OAuth login successful:', userData);
-          
-          router.replace('/');
+          if (token) {
+            await AsyncStorage.setItem('TOKEN', token);
+            
+            const userData = {
+              id: user_id,
+              email: email,
+              display_name: display_name,
+              provider: provider
+            };
+            
+            await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
+            
+            console.log('Google OAuth login successful:', userData);
+            
+            router.replace('/');
+          } else {
+            Alert.alert('Error', 'No token received from Google OAuth');
+          }
+        } else if (result.type === 'cancel') {
+          console.log('User cancelled Google authentication');
         } else {
-          Alert.alert('Error', 'No token received from Google OAuth');
+          Alert.alert('Error', 'Google authentication failed');
         }
-      } else if (result.type === 'cancel') {
-        console.log('User cancelled Google authentication');
-      } else {
-        Alert.alert('Error', 'Google authentication failed');
       }
     } catch (error) {
       console.error('Google auth error:', error);
@@ -208,7 +199,7 @@ export default function LoginScreen() {
       </TouchableOpacity>
       
       <View style={{ flexDirection: "row", alignItems: "center", marginTop: -10, justifyContent: "center" }}>
-      <Text>Don't have an account?    
+      <Text>Don&apos;t have an account?    
         <Link href="/sign-up" asChild>
           <Text style = {styles.linkText} >Sign Up</Text>
         </Link>

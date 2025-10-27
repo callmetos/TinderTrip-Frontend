@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Text, View } from 'react-native';
 import { styles } from '../assets/styles/auth-styles.js';
 import { COLORS } from '../color/colors.js';
 
@@ -16,25 +16,8 @@ export default function GoogleCallbackScreen() {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        console.log('Callback params:', params);
-        console.log('Platform:', Platform.OS);
-        
-        if (Platform.OS === 'web') {
-          console.log('Running in browser - clearing cookies and redirecting to app');
-          
-          // ล้าง cookies ก่อน redirect กลับแอพ
-          console.log('Clearing browser cookies...');
-          document.cookie.split(";").forEach(function(c) { 
-            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-          });
-          console.log('Cookies cleared, redirecting to app');
-          
-          const appUrl = `mobileapp://callback?${new URLSearchParams(params).toString()}`;
-          console.log('App URL:', appUrl);
-          
-          window.location.href = appUrl;
-          return;
-        }
+        // เช็ค AUTH_SOURCE เพื่อดูว่าเป็น mobile หรือ web
+        const authSource = await AsyncStorage.getItem('AUTH_SOURCE');
         
         const { token, user_id, email, display_name, provider } = params;
         
@@ -44,24 +27,42 @@ export default function GoogleCallbackScreen() {
           return;
         }
 
-        await AsyncStorage.setItem('TOKEN', token);
-        const userData = {
-          id: user_id,
-          email: email,
-          display_name: display_name,
-          provider: provider
-        };
-        
-        await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
-        
-        console.log('Google OAuth login successful:', userData);
-        
-        setSuccess(true);
-        setLoading(false);
-        
-        setTimeout(() => {
-          router.replace('/');
-        }, 2000);
+        if (authSource === 'mobile') {
+          // สำหรับ mobile - บันทึกข้อมูลและ redirect กลับไปแอพ
+          await AsyncStorage.setItem('TOKEN', token);
+          const userData = {
+            id: user_id,
+            email: email,
+            display_name: display_name,
+            provider: provider
+          };
+          await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
+          
+          // ล้าง AUTH_SOURCE
+          await AsyncStorage.removeItem('AUTH_SOURCE');
+          
+          // Redirect กลับไปแอพ
+          const appUrl = `mobileapp://callback?${new URLSearchParams(params).toString()}`;
+          window.location.href = appUrl;
+          
+        } else {
+          // สำหรับ web - บันทึกข้อมูลปกติ
+          await AsyncStorage.setItem('TOKEN', token);
+          const userData = {
+            id: user_id,
+            email: email,
+            display_name: display_name,
+            provider: provider
+          };
+          await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
+          
+          setSuccess(true);
+          setLoading(false);
+          
+          setTimeout(() => {
+            router.replace('/');
+          }, 2000);
+        }
         
       } catch (err) {
         console.error('Google callback error:', err);

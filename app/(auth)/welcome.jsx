@@ -1,43 +1,20 @@
 import { COLORS } from '@/color/colors';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import React from 'react';
-import { Alert, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from '../../assets/styles/auth-styles.js';
+import { AlertModal } from '../../src/utils/alerts';
+import { handleLogout, performLogout } from '../../src/utils/logout';
 
 const WelcomeScreen = () => {
   const router = useRouter();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // ลบข้อมูลทั้งหมดจาก AsyncStorage
-              await AsyncStorage.clear();
-              console.log('About to navigate to /login');
-              router.replace('/login');
-              console.log('Navigation completed');
-            } catch (error) {
-              console.error('Logout error:', error);
-              Alert.alert('Error', 'Failed to logout');
-            }
-          },
-        },
-      ]
-    );
-  };
+  const onLogoutConfirm = () => performLogout(router);
+
+  const onLogoutPress = () => handleLogout(onLogoutConfirm, setShowLogoutModal);
 
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: COLORS.background}}>
@@ -64,12 +41,26 @@ const WelcomeScreen = () => {
           marginHorizontal: 20,
           marginBottom: 20
         }}
-        onPress={handleLogout}
+        onPress={onLogoutPress}
       >
         <Text style={{ color: COLORS.shadow, fontSize: 16, fontWeight: '600' }}>
           Logout
         </Text>
       </TouchableOpacity>
+
+      {/* Logout Confirmation Alert for Web */}
+      <AlertModal
+        visible={showLogoutModal}
+        onClose={() => setShowLogoutModal(false)}
+        title="Logout"
+        message="Are you sure you want to logout?"
+        iconName="log-out-outline"
+        iconColor={COLORS.expense}
+        confirmText="Logout"
+        cancelText="Cancel"
+        onConfirm={onLogoutConfirm}
+        confirmButtonColor={COLORS.expense}
+      />
 
     </SafeAreaView>
   )
