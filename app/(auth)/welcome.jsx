@@ -2,12 +2,13 @@ import { COLORS } from '@/color/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from '../../assets/styles/auth-styles.js';
 import ProtectedRoute from '../../src/components/ProtectedRoute';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { AlertModal } from '../../src/utils/alerts';
+import { isWeb } from '../../src/utils/platform';
 
 const WelcomeScreen = () => {
   const router = useRouter();
@@ -22,7 +23,27 @@ const WelcomeScreen = () => {
   };
 
   const onLogoutPress = () => {
-    setShowLogoutModal(true);
+    if (isWeb) {
+      // สำหรับ web ใช้ AlertModal
+      setShowLogoutModal(true);
+    } else {
+      // สำหรับ mobile ใช้ Alert.alert
+      Alert.alert(
+        'Logout',
+        'Are you sure you want to logout?',
+        [
+          {
+            text: 'Cancel',
+            style: 'cancel',
+          },
+          {
+            text: 'Logout',
+            style: 'destructive',
+            onPress: onLogoutConfirm,
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -68,18 +89,20 @@ const WelcomeScreen = () => {
         </TouchableOpacity>
 
         {/* Logout Confirmation Alert for Web */}
-        <AlertModal
-          visible={showLogoutModal}
-          onClose={() => setShowLogoutModal(false)}
-          title="Logout"
-          message="Are you sure you want to logout?"
-          iconName="log-out-outline"
-          iconColor={COLORS.expense}
-          confirmText="Logout"
-          cancelText="Cancel"
-          onConfirm={onLogoutConfirm}
-          confirmButtonColor={COLORS.expense}
-        />
+        {isWeb && (
+          <AlertModal
+            visible={showLogoutModal}
+            onClose={() => setShowLogoutModal(false)}
+            title="Logout"
+            message="Are you sure you want to logout?"
+            iconName="log-out-outline"
+            iconColor={COLORS.expense}
+            confirmText="Logout"
+            cancelText="Cancel"
+            onConfirm={onLogoutConfirm}
+            confirmButtonColor={COLORS.expense}
+          />
+        )}
 
       </SafeAreaView>
     </ProtectedRoute>
