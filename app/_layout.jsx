@@ -6,7 +6,7 @@ import { StatusBar } from "expo-status-bar";
 export default function RootLayout() {
   return (
     <SafeScreen>
-      {/* <Slot />  */}
+      <Slot /> 
       <StatusBar style="dark" />
     </SafeScreen>
   );

@@ -9,8 +9,8 @@ import {
     View
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { styles } from "../../assets/styles/forget-styles";
-import { COLORS } from "../../color/colors";
+import { styles } from "../../assets/styles/forget-styles.js";
+import { COLORS } from "../../color/colors.js";
 import { resendVerification, verifyEmail } from "../../src/api/auth.service.js";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { clearPassword, clearVerifyRegister, loadDisplayName, loadEmail, loadPassword, loadVerifyRegister, saveOTP, saveToken } from "../../src/lib/storage.js";

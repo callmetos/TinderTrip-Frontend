@@ -2,45 +2,102 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useState } from 'react';
-import { Alert, Dimensions, Image, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { 
+  ActivityIndicator,
+  Image, 
+  Keyboard,
+  Platform, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  View 
+} from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { styles } from '../../assets/styles/auth-styles.js';
 import { COLORS } from '../../color/colors.js';
-import { getGoogleAuthUrl, login } from '../../src/api/auth.service';
+import { getGoogleAuthUrl, login } from '../../src/api/auth.service.js';
+import { Notification } from '../../src/utils/Notification.jsx';
+
+// Constants
+const STORAGE_KEYS = {
+  TOKEN: 'TOKEN',
+  USER_DATA: 'USER_DATA'
+};
+
+const getRedirectUrl = () => {
+  return Platform.OS === 'web' 
+    ? `${window.location.origin}/callback`
+    : 'mobileapp://callback';
+};
 
 export default function LoginScreen() {
   const router = useRouter();
+  const passwordRef = useRef(null);
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const SHEET_RATIO = 0.75;
-  const { height } = Dimensions.get("window");
-  const SHEET_HEIGHT = height * SHEET_RATIO;
-
-  const onLoginPress = async () => {
+  // Validation helpers
+  const validateInputs = () => {
     if (!email.trim()) {
-      Alert.alert('Error', 'Please enter your email');
-      return;
+      setError('Please enter your email');
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email');
+      return false;
     }
 
     if (!password.trim()) {
-      Alert.alert('Error', 'Please enter your password');
-      return;
+      setError('Please enter your password');
+      return false;
     }
+
+    return true;
+  };
+
+  const onLoginPress = async () => {
+    // Clear previous errors
+    setError('');
+    
+    // Validate inputs
+    if (!validateInputs()) return;
+
+    // Dismiss keyboard
+    Keyboard.dismiss();
 
     try {
       setLoading(true);
-      const response = await login(email, password);
-      console.log('Login successful:', response);
       
-      await AsyncStorage.setItem('USER_DATA', JSON.stringify(response.user));
+      const response = await login(email, password);
+      
+      if (__DEV__) {
+        console.log('Login successful');
+      }
+      
+      // Store both token and user data
+      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token);
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user));
+      
+      // Navigate to welcome
       router.replace('/welcome');
-    } catch (error) {
-      console.error('Login error:', error);
-      Alert.alert('Login failed', error.userMessage || 'An error occurred');
+      
+    } catch (err) {
+      console.error('Login error:', err);
+      
+      // User-friendly error messages
+      const errorMessage = err.response?.data?.message 
+        || err.response?.data?.error 
+        || err.userMessage 
+        || 'Login failed. Please check your credentials and try again.';
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -48,153 +105,224 @@ export default function LoginScreen() {
 
   const handleGoogleAuth = async () => {
     try {
-      console.log('Google login button pressed!');
+      setGoogleLoading(true);
+      setError('');
+      
+      if (__DEV__) {
+        console.log('Initiating Google OAuth...');
+      }
+      
       const response = await getGoogleAuthUrl();
-      console.log('Google auth response:', response);
+      const redirectUrl = getRedirectUrl();
       
-      // ใช้ callback URL ที่แตกต่างกันตาม platform
-      const redirectUrl = Platform.OS === 'web' 
-        ? 'http://192.168.1.37:8081/callback' 
-        : 'mobileapp://callback';
+      // Create redirect URL for web browser
+      const googleRedirectUrl = `${window.location.origin}/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
       
-      console.log('Using expo-web-browser for native OAuth');
-      
-      console.log('Platform:', Platform.OS);
-      console.log('Redirect URL:', redirectUrl);
-      console.log('Auth URL:', response.auth_url);
-      
-      console.log('Opening WebBrowser...');
-      
-      // เปิดเว็บขึ้นมาบนแอพ → หน้า google-redirect → รอ 5 วินาที → ไป Google OAuth
-      console.log(`Platform is ${Platform.OS}, opening WebBrowser to google-redirect...`);
-      console.log('Auth URL:', response.auth_url);
-      
-      // สร้าง URL สำหรับหน้า google-redirect
-      const googleRedirectUrl = `http://192.168.1.37:8081/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
-      console.log('Google Redirect URL:', googleRedirectUrl);
+      if (__DEV__) {
+        console.log('Opening Google OAuth...');
+      }
       
       const result = await WebBrowser.openAuthSessionAsync(
         googleRedirectUrl,
         redirectUrl
       );
       
-      console.log('WebBrowser result:', result);
-      console.log('Result type:', result.type);
-      console.log('Result URL:', result.url);
-      
       if (result.type === 'success') {
         const url = new URL(result.url);
         const token = url.searchParams.get('token');
         const user_id = url.searchParams.get('user_id');
-        const email = url.searchParams.get('email');
+        const userEmail = url.searchParams.get('email');
         const display_name = url.searchParams.get('display_name');
         const provider = url.searchParams.get('provider');
         
         if (token) {
-          await AsyncStorage.setItem('TOKEN', token);
+          // Store token and user data
+          await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
           
           const userData = {
             id: user_id,
-            email: email,
+            email: userEmail,
             display_name: display_name,
             provider: provider
           };
           
-          await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
+          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
           
-          console.log('Google OAuth login successful:', userData);
+          if (__DEV__) {
+            console.log('Google OAuth successful');
+          }
           
-          router.replace('/');
+          router.replace('/welcome');
         } else {
-          Alert.alert('Error', 'No token received from Google OAuth');
+          setError('Authentication failed. No token received.');
         }
       } else if (result.type === 'cancel') {
-        console.log('User cancelled Google authentication');
+        if (__DEV__) {
+          console.log('User cancelled Google authentication');
+        }
       } else {
-        Alert.alert('Error', 'Google authentication failed');
+        setError('Google authentication failed. Please try again.');
       }
-    } catch (error) {
-      console.error('Google auth error:', error);
-      Alert.alert('Error', 'Failed to get Google auth URL');
+      
+    } catch (err) {
+      console.error('Google auth error:', err);
+      setError('Failed to connect with Google. Please try again.');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
   return (
     <KeyboardAwareScrollView
-      style = {{ flex: 1}}
-      contentContainerStyle = {{flexGrow: 1}}
-      enableOnAndroid= {true}
-      enableAutomaticScroll= {true}
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1 }}
+      enableOnAndroid={true}
+      enableAutomaticScroll={true}
+      keyboardShouldPersistTaps="handled"
     >
+      <View style={styles.container}>
+        {/* Logo */}
+        <View style={{ 
+          flexDirection: "row", 
+          alignItems: "center", 
+          marginBottom: 20, 
+          justifyContent: "center" 
+        }}>
+          <Image 
+            source={require("../../assets/images/Login-page/logo.png")} 
+            style={styles.logo} 
+          />
+          <Text style={styles.logoText}>TinderTrip</Text>
+        </View>
 
-    <View style={styles.container}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, justifyContent: "center" }}>
-        <Image source={require("../../assets/images/Login-page/logo.png")} style = {styles.logo} />
-        <Text style={ styles.logoText }>
-          TinderTrip
-        </Text>
-      </View>
-    
-      <View>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-          placeholderTextColor={COLORS.textLight}
-          placeholder="Enter email"
-          style={styles.inputLogin}
+        {/* Error Notification */}
+        <Notification 
+          type="error" 
+          message={error} 
+          onClose={() => setError('')} 
         />
-      </View>
-      
-      <View>
-        <TextInput
-          style={styles.inputLogin}
-          placeholder="Enter password"
-          placeholderTextColor={COLORS.textLight}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry={!showPassword}
-          autoCapitalize="none"
-        />
-        <TouchableOpacity
-            style={styles.eyeButton}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            <Ionicons
-              name={showPassword ? "eye-outline" : "eye-off-outline"}
-              size={20}
-              color={COLORS.textLight}
-            />
+
+        {/* Email Input */}
+        <View>
+          <Text style={{
+            marginLeft: 50,
+            padding: 8,
+            fontWeight: "500",
+            color: COLORS.textDark
+          }}>
+            Email
+          </Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={styles.inputLogin}
+            placeholder="Enter your email"
+            placeholderTextColor="#999"
+            returnKeyType="next"
+            onSubmitEditing={() => passwordRef.current?.focus()}
+            editable={!loading && !googleLoading}
+            autoFocus
+          />
+        </View>
+
+        {/* Password Input */}
+        <View>
+          <Text style={{
+            marginLeft: 50,
+            padding: 8,
+            fontWeight: "500",
+            color: COLORS.textDark
+          }}>
+            Password
+          </Text>
+          <TextInput
+            ref={passwordRef}
+            style={styles.inputLogin}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholder="Enter your password"
+            placeholderTextColor="#999"
+            returnKeyType="done"
+            onSubmitEditing={onLoginPress}
+            editable={!loading && !googleLoading}
+          />
+        </View>
+
+        {/* Forgot Password Link */}
+        <Link href="/forgot-password" asChild>
+          <TouchableOpacity disabled={loading || googleLoading}>
+            <Text style={styles.linkText}>Forget password</Text>
           </TouchableOpacity>
-      </View>
-
-      <Link href="/forgot-password" asChild>
-            <TouchableOpacity>
-              <Text style = {styles.linkText}>Forgot password</Text>
-            </TouchableOpacity>
-      </Link>
-      
-
-      <TouchableOpacity style = {[styles.buttonLogin, loading && styles.buttonDisabled]} onPress={() => onLoginPress()} disabled={loading}>
-            <Text style = {{color:COLORS.background, fontWeight: 'bold',fontSize:16 }}>Login</Text>
-      </TouchableOpacity>
-      
-      <View style={{ flexDirection: "row", alignItems: "center", marginTop: -10, justifyContent: "center" }}>
-      <Text>Don't have an account?    
-        <Link href="/sign-up" asChild>
-          <Text style = {styles.linkText} >Sign Up</Text>
         </Link>
-      </Text>
+
+        {/* Login Button */}
+        <TouchableOpacity 
+          style={[
+            styles.buttonLogin,
+            (loading || googleLoading) && { opacity: 0.6 }
+          ]} 
+          onPress={onLoginPress} 
+          disabled={loading || googleLoading}
+        >
+          {loading ? (
+            <ActivityIndicator color={COLORS.background} />
+          ) : (
+            <Text style={{ 
+              color: COLORS.background, 
+              fontWeight: 'bold', 
+              fontSize: 16 
+            }}>
+              Login
+            </Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Sign Up Link */}
+        <View style={{ 
+          flexDirection: "row", 
+          alignItems: "center", 
+          marginTop: 10, 
+          justifyContent: "center" 
+        }}>
+          <Text>Don't have an account?    
+            <Link href="/sign-up" asChild>
+              <TouchableOpacity disabled={loading || googleLoading}>
+                <Text style={styles.linkText}>Sign Up</Text>
+              </TouchableOpacity>
+            </Link>
+          </Text>
+        </View>
+
+        <Text style={{ textAlign: 'center', padding: 20 }}>or</Text>
+
+        {/* Google Sign In Button */}
+        <TouchableOpacity 
+          style={[
+            styles.google,
+            (loading || googleLoading) && { opacity: 0.6 }
+          ]} 
+          onPress={handleGoogleAuth}
+          disabled={loading || googleLoading}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={COLORS.primary} />
+          ) : (
+            <>
+              <Ionicons name="logo-google" size={24} color={COLORS.primary} />
+              <Text style={{ 
+                fontSize: 16, 
+                color: COLORS.primary,
+                marginLeft: 8
+              }}>
+                Continue with Google
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
       </View>
-      <Text style = {{textAlign: 'center', padding:20 }}>or</Text>
-
-      <TouchableOpacity style = {styles.google} onPress={handleGoogleAuth}>
-          <Ionicons name="logo-google" size={24} color={COLORS.primary} />
-          <Text Size={16} color={COLORS.primary}>Continue with Google</Text>
-      </TouchableOpacity>
-
-    </View>
     </KeyboardAwareScrollView>
   );
 }
