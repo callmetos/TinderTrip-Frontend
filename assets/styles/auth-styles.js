@@ -166,6 +166,9 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
   footerText: {
     color: COLORS.text,
     fontSize: 16,
@@ -243,5 +246,11 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignSelf: "center",
     marginBottom: 40,
+  },
+  eyeButton: {
+    position: "absolute",
+    right: 50,
+    top: 12,
+    padding: 4,
   },
 });
