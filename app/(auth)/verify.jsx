@@ -2,16 +2,17 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  Image,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Image,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { styles } from "../../assets/styles/forget-styles";
 import { COLORS } from "../../color/colors";
 import { resendVerification, verifyEmail } from "../../src/api/auth.service.js";
+import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { clearPassword, clearVerifyRegister, loadDisplayName, loadEmail, loadPassword, loadVerifyRegister, saveOTP, saveToken } from "../../src/lib/storage.js";
 import { Notification } from "../../src/utils/Notification.jsx";
 
@@ -164,13 +165,14 @@ export default function Verification() {
 
 
   return (
-    <KeyboardAwareScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ flexGrow: 1 }}
-      enableOnAndroid={true}
-      enableAutomaticScroll={true}
-      //extraScrollHeight={100}
-    >
+    <ProtectedRoute requireAuth={false}>
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        //extraScrollHeight={100}
+      >
       <View style={styles.container}>
         <View style={styles.content}>
           <View style={styles.header}>
@@ -242,5 +244,6 @@ export default function Verification() {
         </View>
       </View>
     </KeyboardAwareScrollView>
+    </ProtectedRoute>
   );
 }

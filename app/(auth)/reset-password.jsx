@@ -6,6 +6,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { styles } from '../../assets/styles/forget-styles.js'
 import { COLORS } from '../../color/colors.js'
 import { resetPassword } from '../../src/api/auth.service'
+import ProtectedRoute from "../../src/components/ProtectedRoute"
 import { loadEmail, loadOTP } from "../../src/lib/storage.js"
 import { Notification } from '../../src/utils/Notification.jsx'
 
@@ -96,13 +97,14 @@ export default function ResetPassword() {
   };
   
   return (
-    <KeyboardAwareScrollView
-          style = {{ flex: 1}}
-          contentContainerStyle = {{flexGrow: 1}}
-          enableOnAndroid= {true}
-          enableAutomaticScroll= {true}
-          //extraScrollHeight={100}
-        >
+    <ProtectedRoute requireAuth={false}>
+      <KeyboardAwareScrollView
+            style = {{ flex: 1}}
+            contentContainerStyle = {{flexGrow: 1}}
+            enableOnAndroid= {true}
+            enableAutomaticScroll= {true}
+            //extraScrollHeight={100}
+          >
         <View style = {styles.container}>
       <View style = {styles.content}>
         <View style = {styles.header}>
@@ -159,5 +161,6 @@ export default function ResetPassword() {
     </View>
 
     </KeyboardAwareScrollView>
+    </ProtectedRoute>
   )
 }

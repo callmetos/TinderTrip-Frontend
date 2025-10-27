@@ -1,46 +1,32 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
-import { useEffect, useState } from 'react';
-import { Text, View } from "react-native";
-import { styles } from '../../assets/styles/auth-styles.js';
-import { COLORS } from '../../color/colors.js';
+import { useEffect } from 'react';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function Index() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, isLoading, setupStep } = useAuth();
 
   useEffect(() => {
-    checkAuthAndRedirect();
-  }, []);
-
-  const checkAuthAndRedirect = async () => {
-    try {
-      const token = await AsyncStorage.getItem('TOKEN');
-      
-      if (token) {
-        // มี JWT token ให้ไปหน้า welcome
-        console.log('Token found, redirecting to welcome');
-        router.replace('/welcome');
+    if (!isLoading) {
+      if (isAuthenticated) {
+        // มี authentication ตรวจสอบ setupStep
+        if (setupStep === 'completed') {
+          // เสร็จสิ้น setup แล้ว ให้ไปหน้า myapp
+          console.log('Setup completed, redirecting to myapp');
+          router.replace('/myapp');
+        } else {
+          // ยังไม่เสร็จสิ้น setup ให้ไปหน้า welcome
+          console.log('Setup pending, redirecting to welcome');
+          router.replace('/welcome');
+        }
       } else {
-        // ไม่มี JWT token ให้ไปหน้า login
-        console.log('No token found, redirecting to login');
+        // ไม่มี authentication ให้ไปหน้า login
+        console.log('User is not authenticated, redirecting to login');
         router.replace('/login');
       }
-    } catch (error) {
-      console.error('Error checking auth:', error);
-      // ถ้าเกิด error ให้ไปหน้า login
-      router.replace('/login');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isAuthenticated, isLoading, setupStep, router]);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ fontSize: 18, color: COLORS.textLight }}>Loading...</Text>
-      </View>
-    );
-  }
+  // ไม่ต้องแสดงอะไร เพราะจะ redirect ทันที
   return null;
 }
