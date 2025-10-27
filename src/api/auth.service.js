@@ -97,7 +97,7 @@ export async function resetPassword(email, otp, password) {
 //   "message": "Setup status retrieved successfully"
 // }
 export async function getSetupStatus() {
-  const res = await api.get('/api/v1/user/setup-status');
+  const res = await api.get('/api/v1/users/setup-status');
   return res.data;
 }
 

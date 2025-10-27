@@ -5,10 +5,12 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Image, Text, View } from 'react-native';
 import { styles } from '../assets/styles/auth-styles.js';
 import { COLORS } from '../color/colors.js';
+import { useAuth } from '../src/contexts/AuthContext';
 
 export default function GoogleCallbackScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { login: authLogin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
@@ -46,22 +48,28 @@ export default function GoogleCallbackScreen() {
           window.location.href = appUrl;
           
         } else {
-          // สำหรับ web - บันทึกข้อมูลปกติ
-          await AsyncStorage.setItem('TOKEN', token);
+          // สำหรับ web - บันทึกข้อมูลและอัปเดต AuthContext
           const userData = {
             id: user_id,
             email: email,
             display_name: display_name,
             provider: provider
           };
-          await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
           
-          setSuccess(true);
-          setLoading(false);
+          // ใช้ authLogin จาก context เพื่ออัปเดต state
+          const loginSuccess = await authLogin(userData, token);
           
-          setTimeout(() => {
-            router.replace('/');
-          }, 2000);
+          if (loginSuccess) {
+            setSuccess(true);
+            setLoading(false);
+            
+            setTimeout(() => {
+              router.replace('/');
+            }, 2000);
+          } else {
+            setError('Failed to update authentication state');
+            setLoading(false);
+          }
         }
         
       } catch (err) {
@@ -72,7 +80,7 @@ export default function GoogleCallbackScreen() {
     };
 
     handleCallback();
-  }, [params, router]);
+  }, [params, router, authLogin]);
 
   if (loading) {
     return (
