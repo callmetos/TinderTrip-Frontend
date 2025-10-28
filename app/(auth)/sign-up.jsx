@@ -6,6 +6,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { styles } from "../../assets/styles/auth-styles.js";
 import { COLORS } from "../../color/colors.js";
 import { register } from "../../src/api/auth.service.js";
+import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { saveDisplayName, saveEmail, savePassword, saveVerifyRegister } from "../../src/lib/storage.js";
 import { Notification } from "../../src/utils/Notification.jsx";
 
@@ -106,14 +107,14 @@ export default function SignUpScreen() {
 
 
 return (
-  
-  <KeyboardAwareScrollView
-    style={{ flex: 1 }}
-    contentContainerStyle={{ flexGrow: 1 }}
-    enableOnAndroid={true}
-    enableAutomaticScroll={true}
-        //extraScrollHeight={100}
-  >
+  <ProtectedRoute requireAuth={false}>
+    <KeyboardAwareScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ flexGrow: 1 }}
+      enableOnAndroid={true}
+      enableAutomaticScroll={true}
+          //extraScrollHeight={100}
+    >
 
     <View
       style={{
@@ -233,5 +234,6 @@ return (
     </View>
   
   </KeyboardAwareScrollView>
+  </ProtectedRoute>
 )
 };

@@ -88,3 +88,16 @@ export async function resetPassword(email, otp, password) {
   return res.data;
 }
 
+// TODO: รอ backend สร้าง API endpoint นี้
+// Expected Response Format (ตามมาตรฐานโปรเจค):
+// {
+//   "data": {
+//     "setup_completed": true/false
+//   },
+//   "message": "Setup status retrieved successfully"
+// }
+export async function getSetupStatus() {
+  const res = await api.get('/api/v1/users/setup-status');
+  return res.data;
+}
+
