@@ -1,12 +1,13 @@
 import { COLORS } from '@/color/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from '../../assets/styles/auth-styles.js';
 import ProtectedRoute from '../../src/components/ProtectedRoute.jsx';
 import { useAuth } from '../../src/contexts/AuthContext.js';
+import { getSetupStatus } from '../../src/api/auth.service.js';
 import { AlertModal } from '../../src/utils/alerts.js';
 import { isWeb } from '../../src/utils/platform.js';
 
@@ -14,6 +15,53 @@ const WelcomeScreen = () => {
   const router = useRouter();
   const { logout, user } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkSetup = async () => {
+      try {
+        setLoading(true);
+        const res = await getSetupStatus();
+        const setupCompleted = res?.data?.setup_completed ?? false;
+
+        if (!mounted) return;
+
+        // If profile is already completed, send user to home. Otherwise to profile.
+        if (setupCompleted) {
+          router.replace('/home');
+        } else {
+          router.replace('/profile');
+        }
+      } catch (err) {
+        // If unauthorized, redirect to login. Otherwise show an alert and keep user on welcome.
+        const status = err?.response?.status;
+        if (status === 401) {
+          router.replace('/login');
+        } else {
+          console.error('Failed to fetch setup status', err);
+          // Use native alert as a fallback
+          Alert.alert('Error', 'Unable to check setup status. Please try again later.');
+        }
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    // Only run check if we have a user (ProtectedRoute should ensure auth),
+    // but guard in case user is not yet populated.
+    if (user) {
+      checkSetup();
+    } else {
+      // If no user, stop loading so UI remains responsive. ProtectedRoute may redirect.
+      setLoading(false);
+    }
+
+    return () => {
+      mounted = false;
+    };
+  }, [user, router]);
 
   const onLogoutConfirm = async () => {
     const logoutSuccess = await logout();
@@ -45,6 +93,16 @@ const WelcomeScreen = () => {
       );
     }
   };
+
+  if (loading) {
+    return (
+      <ProtectedRoute requireAuth={true}>
+        <SafeAreaView style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background}}>
+          <Text style={{ color: COLORS.textLight }}>Checking setup...</Text>
+        </SafeAreaView>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute requireAuth={true}>
