@@ -1,14 +1,41 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Image, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { styles } from "../../assets/styles/auth-styles.js";
 import { COLORS } from "../../color/colors.js";
 import { register } from "../../src/api/auth.service.js";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
+import { ERROR_MESSAGES } from "../../src/constants/errorMessages.js";
 import { saveDisplayName, saveEmail, savePassword, saveVerifyRegister } from "../../src/lib/storage.js";
 import { Notification } from "../../src/utils/Notification.jsx";
+import { validateDisplayName, validateEmail, validatePassword, validateConfirmPassword } from "../../src/utils/validation.js";
+
+const useSignUpForm = () => {
+  const [formData, setFormData] = useState({
+    display_name: "",
+    email: "",
+    password: "",
+    confirmPassword: ""
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setError(""); // Clear error when user types
+  };
+  
+  return {
+    formData,
+    loading,
+    error,
+    setError,
+    setLoading,
+    handleChange
+  };
+};
 
 export default function SignUpScreen() {
   const router = useRouter("");
@@ -23,28 +50,46 @@ export default function SignUpScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  
+  // Password strength state
+  const [passwordStrength, setPasswordStrength] = useState(0);
+  const [strengthColor, setStrengthColor] = useState("red");
+  const [strengthLabel, setStrengthLabel] = useState("");
+
+  // แยก error messages เป็น constants
+  const ERROR_MESSAGES = {
+    DISPLAY_NAME_REQUIRED: "Please enter display name",
+    EMAIL_REQUIRED: "Please enter email",
+    EMAIL_INVALID: "Please enter a valid email",
+    PASSWORD_REQUIRED: "Please enter password",
+    PASSWORD_TOO_SHORT: "Password must be at least 8 characters",
+    PASSWORDS_NOT_MATCH: "Passwords do not match",
+    EMAIL_EXISTS: "Email already exists",
+    NETWORK_ERROR: "Network error. Please try again.",
+    SERVER_ERROR: "Server error. Please try again later."
+  };
+
   const onSignUpPress = async () => {
     console.log("Button pressed!");
     console.log("Current values:", { display_name, email, password, confirmPassword });
     
-           if (!display_name.trim()) {
-             console.log("Error: Display name is empty");
-             setError("Please enter display name");
+           const displayNameValidation = validateDisplayName(display_name);
+           if (!displayNameValidation.isValid) {
+             console.log("Error: Display name validation failed");
+             setError(displayNameValidation.error);
              setSuccess("");
              return;
            }
 
            if (!email.trim()) {
              console.log("Error: Email is empty");
-             setError("Please enter email");
+             setError(ERROR_MESSAGES.EMAIL_REQUIRED);
              setSuccess("");
              return;
            }
 
            if (!password.trim()) {
              console.log("Error: Password is empty");
-             setError("Please enter password");
+             setError(ERROR_MESSAGES.PASSWORD_REQUIRED);
              setSuccess("");
              return;
            }
@@ -58,14 +103,14 @@ export default function SignUpScreen() {
 
            if (password !== confirmPassword) {
              console.log("Error: Passwords do not match");
-             setError("Passwords do not match");
+             setError(ERROR_MESSAGES.PASSWORDS_NOT_MATCH);
              setSuccess("");
              return;
            }
 
            if (password.length < 8) {
              console.log("Error: Password too short");
-             setError("Password must be at least 8 characters");
+             setError(ERROR_MESSAGES.PASSWORD_TOO_SHORT);
              setSuccess("");
              return;
            }
@@ -73,7 +118,7 @@ export default function SignUpScreen() {
            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
            if (!emailRegex.test(email)) {
              console.log("Error: Invalid email format");
-             setError("Please enter a valid email");
+             setError(ERROR_MESSAGES.EMAIL_INVALID);
              setSuccess("");
              return;
            }
@@ -81,30 +126,75 @@ export default function SignUpScreen() {
     try {
       setLoading(true);
       setError("");
-      setSuccess("");
-      console.log("Calling register API...");
       
-             const res = await register(email, password, display_name);
-             console.log("API Response:", res);
-
-             // เก็บ email, display_name, password และ verify_register ลง AsyncStorage
-             await saveEmail(email);
-             await saveDisplayName(display_name);
-             await savePassword(password);
-             await saveVerifyRegister(true);
-             
-
-             router.replace("/verify");
+      const res = await register(email, password, display_name);
+      console.log("Registration successful:", res);
+      
+      // เก็บข้อมูลที่จำเป็นสำหรับการ verify
+      await Promise.all([
+        saveEmail(email),
+        saveDisplayName(display_name),
+        savePassword(password),
+        saveVerifyRegister(true)
+      ]);
+      
+      router.replace({
+        pathname: "/(auth)/verify",
+        params: { email }
+      });
     } catch (err) {
-      console.error("Signup error:", err);
-      console.log("Error details:", err.response);
-      setError(err.response?.data?.error || err.message || "Something went wrong");
+      if (err.response) {
+        const errorCode = err.response.data?.code;
+        switch(errorCode) {
+          case 'CONFLICT':
+            setError(ERROR_MESSAGES.EMAIL_EXISTS);
+            break;
+          default:
+            setError(err.response.data?.message || ERROR_MESSAGES.SERVER_ERROR);
+        }
+      } else if (err.request) {
+        setError(ERROR_MESSAGES.NETWORK_ERROR);
+      } else {
+        setError(ERROR_MESSAGES.SERVER_ERROR);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // Password strength calculation
+  const calculatePasswordStrength = (password) => {
+    let strength = 0;
+    if (password.length >= 8) strength += 1;
+    if (/[A-Z]/.test(password)) strength += 1;
+    if (/[a-z]/.test(password)) strength += 1;
+    if (/[0-9]/.test(password)) strength += 1;
+    if (/[^A-Za-z0-9]/.test(password)) strength += 1;
 
+    // Update strength color and label
+    if (strength === 0) {
+      setStrengthColor("red");
+      setStrengthLabel("");
+    } else if (strength <= 2) {
+      setStrengthColor("orange");
+      setStrengthLabel("Weak");
+    } else if (strength === 3) {
+      setStrengthColor("lightgreen");
+      setStrengthLabel("Moderate");
+    } else {
+      setStrengthColor("green");
+      setStrengthLabel("Strong");
+    }
+
+    return (strength / 5) * 100;
+  };
+
+  // Handle password change
+  const handlePasswordChange = (password) => {
+    setPassword(password);
+    const strength = calculatePasswordStrength(password);
+    setPasswordStrength(strength);
+  };
 
 return (
   <ProtectedRoute requireAuth={false}>
@@ -142,9 +232,20 @@ return (
      
       <TextInput
         value={display_name}
-        onChangeText={setDisplayName}
-        style={styles.inputLogin}
-        placeholder="Display name"
+        onChangeText={(text) => {
+          setDisplayName(text);
+          const validation = validateDisplayName(text);
+          if (!validation.isValid) {
+            setError(validation.error);
+          } else {
+            setError("");
+          }
+        }}
+        style={[
+          styles.inputLogin,
+          error && error.includes("display name") && styles.inputError
+        ]}
+        placeholder="Display name (min. 2 characters)"
         placeholderTextColor="gray"
       />
       <Notification 
@@ -155,10 +256,21 @@ return (
 
       <TextInput
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(text) => {
+          setEmail(text);
+          const validation = validateEmail(text);
+          if (!validation.isValid) {
+            setError(validation.error);
+          } else {
+            setError("");
+          }
+        }}
         autoCapitalize="none"
         keyboardType="email-address"
-        style={styles.inputLogin}
+        style={[
+          styles.inputLogin,
+          error && (error.includes("email") || error.includes("Email")) && styles.inputError
+        ]}
         placeholder="Email"
         placeholderTextColor="gray"
       />
@@ -171,7 +283,7 @@ return (
       <View style={{ position: 'relative' }}>
         <TextInput
           value={password}
-          onChangeText={setPassword}
+          onChangeText={handlePasswordChange}
           secureTextEntry={!showPassword}
           style={[styles.inputLogin, { paddingRight: 44 }]}
           placeholder="Password"
@@ -221,15 +333,41 @@ return (
         onClose={() => setError("")} 
       />
 
-      {/* ไม่แสดง success notification */}
-      {/* <Notification 
+      {/* Password strength indicator */}
+      <View style={styles.passwordStrengthContainer}>
+        <View style={[
+          styles.strengthBar,
+          { width: `${passwordStrength}%`, backgroundColor: strengthColor }
+        ]} />
+        <Text style={styles.strengthText}>{strengthLabel}</Text>
+      </View>
+
+      {/* แสดง success notification */}
+      <Notification 
         type="success" 
         message={success} 
         onClose={() => setSuccess("")} 
-      /> */}
+      />
 
-      <TouchableOpacity style = {styles.buttonSignUp} onPress={onSignUpPress} disabled={loading}>
-        <Text style = {{ fontWeight: 'bold',fontSize:16, color: COLORS.redwine }}>SignUp</Text>
+      <TouchableOpacity 
+        style={[
+          styles.buttonSignUp,
+          loading && styles.buttonDisabled
+        ]} 
+        onPress={onSignUpPress} 
+        disabled={loading}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ 
+            fontWeight: 'bold', 
+            fontSize: 16, 
+            color: COLORS.redwine, 
+            marginRight: loading ? 10 : 0 
+          }}>
+            {loading ? "Signing up..." : "Sign Up"}
+          </Text>
+          {loading && <ActivityIndicator size="small" color={COLORS.redwine} />}
+        </View>
       </TouchableOpacity>
     </View>
   

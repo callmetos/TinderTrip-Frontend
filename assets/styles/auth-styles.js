@@ -205,10 +205,10 @@ export const styles = StyleSheet.create({
     width: "100%",
   },
   errorText: {
-    color: COLORS.text,
-    marginLeft: 8,
-    flex: 1,
+    color: COLORS.error,
     fontSize: 14,
+    marginTop: 4,
+    marginLeft: 8,
   },
   successBox: {
     backgroundColor: "#E8F5E8",
@@ -252,5 +252,26 @@ export const styles = StyleSheet.create({
     right: 50,
     top: 12,
     padding: 4,
+  },
+  inputError: {
+    borderColor: COLORS.expense,
+    borderWidth: 1,
+  },
+  passwordStrengthContainer: {
+    marginHorizontal: 30,
+    marginBottom: 15,
+    height: 4,
+    backgroundColor: "#ddd",
+    borderRadius: 2,
+  },
+  strengthBar: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  strengthText: {
+    textAlign: "center",
+    marginTop: 4,
+    fontSize: 12,
+    color: COLORS.textLight,
   },
 });
