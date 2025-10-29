@@ -7,6 +7,7 @@
     white: "#FFFFFF",
     textLight: "#9A8478",
     redwine: "#6A2E35",
+    // redwine: "#800020",
     income: "#2ECC71",
     expense: "#E74C3C",
     card: "#FFFFFF",

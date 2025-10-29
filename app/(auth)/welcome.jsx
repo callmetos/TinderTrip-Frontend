@@ -1,7 +1,7 @@
 import { COLORS } from '@/color/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from '../../assets/styles/auth-styles.js';
@@ -65,7 +65,7 @@ const WelcomeScreen = () => {
             </View>
           )}
         </View>
-        <TouchableOpacity onPress={() => router.push('/infomation')}>
+        <TouchableOpacity onPress={() => router.push('/information')}>
           <View style={styles.buttonProfile}>
             <Text style={styles.buttonText}>Get Started</Text>
           </View>
