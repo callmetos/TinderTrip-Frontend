@@ -130,7 +130,6 @@ export default function SignUpScreen() {
       const res = await register(email, password, display_name);
       console.log("Registration successful:", res);
       
-      // เก็บข้อมูลที่จำเป็นสำหรับการ verify
       await Promise.all([
         saveEmail(email),
         saveDisplayName(display_name),
@@ -245,7 +244,7 @@ return (
           styles.inputLogin,
           error && error.includes("display name") && styles.inputError
         ]}
-        placeholder="Display name (min. 2 characters)"
+        placeholder="Display name"
         placeholderTextColor="gray"
       />
       <Notification 

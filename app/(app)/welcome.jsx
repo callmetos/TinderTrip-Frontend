@@ -5,10 +5,10 @@ import React, { useState } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { styles } from '../../assets/styles/auth-styles.js';
-import ProtectedRoute from '../../src/components/ProtectedRoute';
-import { useAuth } from '../../src/contexts/AuthContext';
-import { AlertModal } from '../../src/utils/alerts';
-import { isWeb } from '../../src/utils/platform';
+import ProtectedRoute from '../../src/components/ProtectedRoute.jsx';
+import { useAuth } from '../../src/contexts/AuthContext.js';
+import { AlertModal } from '../../src/utils/alerts.js';
+import { isWeb } from '../../src/utils/platform.js';
 
 const WelcomeScreen = () => {
   const router = useRouter();

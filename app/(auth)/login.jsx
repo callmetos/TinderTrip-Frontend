@@ -78,15 +78,19 @@ export default function LoginScreen() {
       const response = await login(email, password);
       
       if (__DEV__) {
-        console.log('Login successful');
+        console.log('Login successful:', response);
       }
       
-      // Store both token and user data
-      await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token);
-      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user));
+      // Store auth data
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token),
+        AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user))
+      ]);
       
-      // Navigate to welcome
-      router.replace('/welcome');
+      // ใช้ replace และรอให้เสร็จสมบูรณ์
+      setTimeout(() => {
+        router.replace('/welcome');
+      }, 100);
       
     } catch (err) {
       console.error('Login error:', err);
