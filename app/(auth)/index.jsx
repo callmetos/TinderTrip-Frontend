@@ -1,32 +1,58 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from "expo-router";
-import { useEffect } from 'react';
-import { useAuth } from '../../src/contexts/AuthContext';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Text, View } from "react-native";
+import { styles } from '../../assets/styles/auth-styles.js';
+import { COLORS } from '../../color/colors.js';
+
+// Constants
+const STORAGE_KEYS = {
+  TOKEN: 'TOKEN',
+  USER_DATA: 'USER_DATA'
+};
 
 export default function Index() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, setupStep } = useAuth();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (isAuthenticated) {
-        // มี authentication ตรวจสอบ setupStep
-        if (setupStep === 'completed') {
-          // เสร็จสิ้น setup แล้ว ให้ไปหน้า myapp
-          console.log('Setup completed, redirecting to myapp');
-          router.replace('/myapp');
-        } else {
-          // ยังไม่เสร็จสิ้น setup ให้ไปหน้า welcome
-          console.log('Setup pending, redirecting to welcome');
-          router.replace('/welcome');
-        }
+    checkAuthAndRedirect();
+  }, []);
+
+  const checkAuthAndRedirect = async () => {
+    try {
+      // Check for token
+      const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
+      
+      if (token) {
+        // Has JWT token - go to welcome
+        console.log('Token found, redirecting to welcome');
+        router.replace('/welcome');
       } else {
-        // ไม่มี authentication ให้ไปหน้า login
-        console.log('User is not authenticated, redirecting to login');
+        // No JWT token - go to login
+        console.log('No token found, redirecting to login');
         router.replace('/login');
       }
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      // On error, redirect to login for safety
+      router.replace('/login');
+    } finally {
+      setLoading(false);
     }
-  }, [isAuthenticated, isLoading, setupStep, router]);
+  };
 
-  // ไม่ต้องแสดงอะไร เพราะจะ redirect ทันที
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={COLORS.redwine} />
+        <Text style={{ fontSize: 18, color: COLORS.textLight, marginTop: 10 }}>
+          Loading...
+        </Text>
+      </View>
+    );
+  }
+
+  // Return null while navigating
   return null;
 }

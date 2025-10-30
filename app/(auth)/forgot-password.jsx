@@ -5,8 +5,7 @@ import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-nat
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { styles } from '../../assets/styles/forget-styles.js'
 import { COLORS } from '../../color/colors.js'
-import { forgetPassword } from '../../src/api/auth.service'
-import ProtectedRoute from "../../src/components/ProtectedRoute"
+import { forgetPassword } from '../../src/api/auth.service.js'
 import { saveEmail } from "../../src/lib/storage.js"
 
 
@@ -66,14 +65,13 @@ export default function ForgotPassword() {
   
 
   return (
-    <ProtectedRoute requireAuth={false}>
-      <KeyboardAwareScrollView
-        style = {{ flex: 1}}
-        contentContainerStyle = {{flexGrow: 1}}
-        enableOnAndroid= {true}
-        enableAutomaticScroll= {true}
-        //extraScrollHeight={100}
-      >
+    <KeyboardAwareScrollView
+      style = {{ flex: 1}}
+      contentContainerStyle = {{flexGrow: 1}}
+      enableOnAndroid= {true}
+      enableAutomaticScroll= {true}
+      //extraScrollHeight={100}
+    >
     <View style = {styles.container}>
       <View style = {styles.content}>
         <View style = {styles.header}>
@@ -115,6 +113,5 @@ export default function ForgotPassword() {
       
     </View>
     </KeyboardAwareScrollView>
-    </ProtectedRoute>
   )
 };
