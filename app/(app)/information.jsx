@@ -1,19 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, { DateTimePickerAndroid, } from "@react-native-community/datetimepicker";
 import { Picker } from '@react-native-picker/picker';
-import { Link } from "expo-router";
-import { useState } from "react";
+import { Link, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { Image, Modal, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { styles } from '../../assets/styles/info-styles.js';
 import { COLORS } from '../../color/colors.js';
 import ProtectedRoute from '../../src/components/ProtectedRoute.jsx';
-import { useAuth } from '../../src/contexts/AuthContext.jsx';
 
 export default function InformationScreen() {
-  const { user } = useAuth();
+  const router = useRouter("");
+  const [user, setUser] = useState(null);
   
-  const [name, setName] = useState(user?.display_name || "");
+  const [name, setName] = useState("");
   const [bio, setBio] = useState("");
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [showLanguagePicker, setShowLanguagePicker] = useState(false);
@@ -29,15 +30,33 @@ export default function InformationScreen() {
   const [smoking, setSmoking] = useState("");
   const [interests, setInterests] = useState("");
 
+    useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem("USER_DATA");
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+          console.log("Loaded user:", JSON.parse(storedUser));
+        } else {
+          console.log("No user data found in storage");
+        }
+      } catch (error) {
+        console.error("Failed to load user data:", error);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
   const handleNext = () => {
     console.log("Next button pressed!");
   };
 
-  const avatarUri =
-    user?.photo_url ||
-    user?.imageUrl ||
-    // fallback image
-    "https://i.pravatar.cc/150?img=3";
+  const avatarSource = user?.photo_url
+    ? { uri: user.photo_url }
+    : user?.imageUrl
+    ? { uri: user.imageUrl }
+    : require("../../assets/images/image 6.png");
 
   const handleAvatarPress = () => {
     // open image picker here
@@ -107,10 +126,7 @@ export default function InformationScreen() {
             }}>
             <View style = {styles.headerLeft}>
               <TouchableOpacity onPress={handleAvatarPress}>
-                <Image
-                  source = {{ uri: avatarUri }}
-                  style = {styles.image}
-                />
+                <Image source={avatarSource} style={styles.avatar} />
                 <TouchableOpacity style={styles.editButton} onPress={handleCameraPress}>
                   <Ionicons name="camera-outline" size={20} color = {COLORS.white}/>
                 </TouchableOpacity>
@@ -385,7 +401,7 @@ export default function InformationScreen() {
           <Ionicons name="arrow-forward" size={20} color="#5A1D1D" />
         </TouchableOpacity>
 
-        <Link href="/" asChild>
+        <Link href="/create-trip" asChild>
           <Text style = {styles.linkText} >Skip<Ionicons name="play-skip-forward-outline" ></Ionicons></Text>
         </Link>
         

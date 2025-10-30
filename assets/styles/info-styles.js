@@ -29,7 +29,7 @@ export const styles = StyleSheet.create({
     
   },
 
-  image: {
+  avatar: {
     height: 69, 
     width: 69, 
     borderRadius: 32, 
