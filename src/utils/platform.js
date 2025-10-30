@@ -9,6 +9,8 @@ export const getPlatform = () => {
   return Platform.OS === 'web' ? 'web' : 'mobile';
 };
 
+
+
 // ตัวอย่างการใช้งาน
 // if (isWeb) {
 //   // ทำอะไรสำหรับ web
