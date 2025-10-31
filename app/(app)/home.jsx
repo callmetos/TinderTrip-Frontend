@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { Image, Text, TouchableOpacity, View, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import Swiper from 'react-native-deck-swiper';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
@@ -7,15 +9,25 @@ import { COLORS } from '@/color/colors';
 // Constants
 const INITIAL_PAGE = 1;
 const PAGE_LIMIT = 20;
-const PRELOAD_THRESHOLD = 3; // โหลดข้อมูลใหม่เมื่อเหลือ 3 การ์ด
+const PRELOAD_THRESHOLD = 3;
 
 // Memoized Card Component
-const Card = memo(({ event }) => {
+const Card = memo(({ event, onPress }) => {
+  const capacity = event?.capacity ?? event?.max_capacity ?? null;
+  const joined =
+    event?.attendees_count ??
+    event?.member_count ??
+    event?.participants_count ??
+    event?.joined_count ??
+    null;
+
   return (
-    <View style={styles.cardContainer}>
+    <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
+      <View style={styles.cardContainer}>
       {event?.cover_image_url ? (
         <Image
-          source={{ uri: event.cover_image_url }}
+          // source={{ uri: event.cover_image_url }}
+          source={require('../../assets/images/vertigo-rooftop-restaurant.jpg')}
           style={styles.cardImage}
           resizeMode="cover"
         />
@@ -35,14 +47,29 @@ const Card = memo(({ event }) => {
         <Text style={styles.cardAddress} numberOfLines={1}>
           📍 {event?.address_text}
         </Text>
+
+        {(capacity != null || joined != null) && (
+          <View style={styles.cardMetaRow}>
+            <Ionicons name="people-outline" size={16} color={COLORS.textLight} />
+            <Text style={styles.cardMetaText} numberOfLines={1}>
+              {joined != null && capacity != null
+                ? `${joined}/${capacity} people`
+                : joined != null
+                ? `${joined} people`
+                : `Capacity: ${capacity}`}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
+    </TouchableOpacity>
   );
 });
 
 Card.displayName = 'Card';
 
 export default function Home() {
+  const router = useRouter();
   const swiperRef = useRef(null);
 
   const [events, setEvents] = useState([]);
@@ -97,10 +124,36 @@ export default function Home() {
   const postSwipe = useCallback(async (eventId, direction) => {
     try {
       const apiDirection = direction === 'right' ? 'like' : 'pass';
+      
+      // Send swipe action
       await api.post(`/api/v1/events/${eventId}/swipe`, {
         event_id: eventId,
         direction: apiDirection,
       });
+      
+      // If swiped right (like), automatically join the event
+      if (direction === 'right') {
+        try {
+          await api.post(`/api/v1/events/${eventId}/join`);
+          console.log('✅ Auto-joined event:', eventId);
+        } catch (joinErr) {
+          const status = joinErr?.response?.status;
+          if (status === 409) {
+            // Already joined - this means either:
+            // 1. User is already a member, or
+            // 2. User left before but backend keeps the record
+            // Either way, treat as already joined
+            console.log('ℹ️ Event already joined (or previously joined):', eventId);
+          } else if (status === 400) {
+            // Event might be full or other validation error
+            const message = joinErr?.response?.data?.message;
+            console.warn('⚠️ Cannot join event:', message);
+            Alert.alert('Cannot Join', message || 'This event is not available');
+          } else {
+            console.error('❌ Failed to auto-join event:', joinErr);
+          }
+        }
+      }
     } catch (err) {
       console.error(`Failed to send ${direction} swipe`, err);
       const status = err?.response?.status;
@@ -224,7 +277,17 @@ export default function Home() {
             ref={swiperRef}
             cards={events}
             cardIndex={currentIndex}
-            renderCard={(card) => (card ? <Card event={card} /> : null)}
+            renderCard={(card) => 
+              card ? (
+                <Card 
+                  event={card} 
+                  onPress={() => router.push({
+                    pathname: '/event-details',
+                    params: { id: card.id, from: 'home' }
+                  })} 
+                />
+              ) : null
+            }
             onSwipedLeft={onSwipedLeft}
             onSwipedRight={onSwipedRight}
             onSwipedAll={onSwipedAll}
@@ -232,8 +295,10 @@ export default function Home() {
             backgroundColor="transparent"
             animateCardOpacity
             verticalSwipe={false}
-            cardVerticalMargin={0}
-            cardHorizontalMargin={0}
+            containerStyle={{ alignItems: 'center', justifyContent: 'center' }}
+            cardVerticalMargin={12}
+            cardHorizontalMargin={16}
+            cardStyle={{ alignSelf: 'center', width: '92%' }}
             overlayLabels={{
               left: {
                 title: 'NOPE',
@@ -286,6 +351,9 @@ export default function Home() {
           onPress={() => swiperRef.current?.swipeLeft()}
           style={[styles.actionButton, styles.dislikeButton]}
           activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Pass"
         >
           <Text style={styles.buttonEmoji}>✕</Text>
         </TouchableOpacity>
@@ -294,6 +362,9 @@ export default function Home() {
           onPress={() => swiperRef.current?.swipeRight()}
           style={[styles.actionButton, styles.likeButton]}
           activeOpacity={0.7}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel="Like"
         >
           <Text style={styles.buttonEmoji}>♥</Text>
         </TouchableOpacity>
@@ -335,14 +406,17 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    width: '100%',
   },
   swiperWrapper: {
     width: '100%',
     height: 440,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardContainer: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 25,
     overflow: 'hidden',
     borderColor: '#eee',
     borderWidth: 1,
@@ -388,11 +462,28 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     fontSize: 13,
   },
-  buttonContainer: {
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  cardMetaText: {
+    color: COLORS.textLight,
+    fontSize: 13,
+    marginLeft: 6,
+    flexShrink: 1,
+  },
+buttonContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 30,
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingVertical: 16,
     paddingHorizontal: 40,
+    zIndex: 20,
+    elevation: 20,
   },
   actionButton: {
     width: 64,

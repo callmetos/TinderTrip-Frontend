@@ -96,11 +96,9 @@ const WelcomeScreen = () => {
 
   if (loading) {
     return (
-      <ProtectedRoute requireAuth={true}>
-        <SafeAreaView style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background}}>
-          <Text style={{ color: COLORS.textLight }}>Checking setup...</Text>
-        </SafeAreaView>
-      </ProtectedRoute>
+      <SafeAreaView style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.background}}>
+        <Text style={{ color: COLORS.textLight }}>Checking setup...</Text>
+      </SafeAreaView>
     );
   }
 

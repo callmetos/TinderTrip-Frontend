@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 
 const TABS = ['Upcoming', 'Past'];
 
 export default function MyEventsScreen() {
+  const router = useRouter();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -20,16 +22,36 @@ export default function MyEventsScreen() {
   const fetchMyEvents = async () => {
     try {
       setLoading(true);
-      // TODO: Replace with actual endpoint when backend is ready
-      // const res = await api.get('/api/v1/users/me/events');
-      // For now, fetch sample events
+      // Fetch all published events
       const res = await api.get('/api/v1/events', {
-        params: { page: 1, limit: 20, status: 'published' },
+        params: { page: 1, limit: 100, status: 'published' },
       });
       
       const allEvents = res?.data?.data || [];
-      // TODO: Filter by joined events when is_joined field is available
-      setEvents(allEvents.slice(0, 5)); // Temporary: show first 5
+      
+      // Fetch photos for each event
+      const eventsWithPhotos = await Promise.all(
+        allEvents.map(async (event) => {
+          try {
+            const photosRes = await api.get(`/api/v1/events/${event.id}/photos`);
+            const photos = photosRes?.data?.data || photosRes?.data || [];
+            return {
+              ...event,
+              photos: photos,
+              cover_image_url: photos.length > 0 ? photos[0].url : event.cover_image_url
+            };
+          } catch (err) {
+            // Silently handle 404 - event might not have photos endpoint
+            if (err?.response?.status !== 404) {
+              console.error(`Failed to fetch photos for event ${event.id}`, err);
+            }
+            return event;
+          }
+        })
+      );
+
+      console.log('Total events:', eventsWithPhotos.length);
+      setEvents(eventsWithPhotos);
     } catch (err) {
       console.error('Failed to fetch my events', err);
       Alert.alert('Error', 'Failed to load your events');
@@ -56,16 +78,53 @@ export default function MyEventsScreen() {
           onPress: async () => {
             try {
               await api.post(`/api/v1/events/${eventId}/leave`);
+              
+              // Remove the event from the list immediately
+              setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
+              
               Alert.alert('Success', 'You have left the event');
-              fetchMyEvents();
             } catch (err) {
               console.error('Failed to leave event', err);
-              Alert.alert('Error', 'Failed to leave event');
+              const errorMessage = err?.response?.data?.message || 'Failed to leave event';
+              Alert.alert('Error', errorMessage);
             }
           },
         },
       ]
     );
+  };
+
+  const handleOpenChat = async (event) => {
+    try {
+      // Find the chat room for this event
+      const roomsResponse = await api.get('/api/v1/chat/rooms');
+      const rooms = roomsResponse.data.rooms || [];
+      
+      console.log('Looking for chat room for event:', event.id);
+      console.log('Available rooms:', rooms.map(r => ({ id: r.id, event_id: r.event_id })));
+      
+      // Find room that matches this event ID
+      const eventRoom = rooms.find(room => room.event_id === event.id);
+      
+      if (eventRoom) {
+        console.log('Found room:', eventRoom.id, 'for event:', event.id);
+        // Navigate to the chat room
+        router.push({
+          pathname: '/chat-room',
+          params: { 
+            roomId: eventRoom.id,
+            eventTitle: event.title,
+            from: 'my-events'
+          }
+        });
+      } else {
+        console.log('No room found for event:', event.id);
+        Alert.alert('Info', 'Chat room not available yet. It will be created when the event starts.');
+      }
+    } catch (err) {
+      console.error('Failed to open chat', err);
+      Alert.alert('Error', 'Failed to open chat');
+    }
   };
 
   const filteredEvents = events.filter((event) => {
@@ -83,7 +142,14 @@ export default function MyEventsScreen() {
     const isPast = new Date(item.start_at) < new Date();
     
     return (
-      <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+      <TouchableOpacity 
+        style={styles.card} 
+        activeOpacity={0.7}
+        onPress={() => router.push({
+          pathname: '/event-details',
+          params: { id: item.id, from: 'my-events' }
+        })}
+      >
         {item.cover_image_url ? (
           <Image source={{ uri: item.cover_image_url }} style={styles.image} resizeMode="cover" />
         ) : (
@@ -115,14 +181,23 @@ export default function MyEventsScreen() {
           <View style={styles.actions}>
             {!isPast && (
               <>
-                <TouchableOpacity style={[styles.button, styles.chatButton]}>
+                <TouchableOpacity 
+                  style={[styles.button, styles.chatButton]}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleOpenChat(item);
+                  }}
+                >
                   <Ionicons name="chatbubble" size={16} color="#fff" />
                   <Text style={styles.buttonText}>Chat</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
                   style={[styles.button, styles.leaveButton]}
-                  onPress={() => handleLeaveEvent(item.id)}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    handleLeaveEvent(item.id);
+                  }}
                 >
                   <Text style={[styles.buttonText, { color: '#e74c3c' }]}>Leave</Text>
                 </TouchableOpacity>

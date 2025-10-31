@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 
-export default function MessagesScreen() {
+export default function ChatListScreen() {
   const router = useRouter();
-  const [chatRooms, setChatRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [chatRooms, setChatRooms] = useState([]);
+  const [lastMessages, setLastMessages] = useState({});
 
   useEffect(() => {
     fetchChatRooms();
@@ -19,114 +20,197 @@ export default function MessagesScreen() {
   const fetchChatRooms = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/chat/rooms');
       
-      // Handle different response formats
-      const rooms = res?.data?.rooms || res?.data?.data || [];
-      setChatRooms(rooms);
+      // Fetch chat rooms
+      const response = await api.get('/api/v1/chat/rooms');
+      const rooms = response.data.rooms || [];
+      
+      // Fetch user's joined events to filter chat rooms
+      const eventsResponse = await api.get('/api/v1/events', {
+        params: { page: 1, limit: 100, status: 'published' },
+      });
+      const allEvents = eventsResponse?.data?.data || [];
+      const joinedEvents = allEvents.filter(event => event.is_joined === true);
+      const joinedEventIds = joinedEvents.map(event => event.id);
+      
+      console.log('Joined event IDs:', joinedEventIds);
+      
+      // Filter rooms to only show those for joined events
+      const filteredRooms = rooms.filter(room => {
+        const isJoined = joinedEventIds.includes(room.event_id);
+        console.log('Room:', room.id, 'Event:', room.event_id, 'Is Joined:', isJoined);
+        return isJoined;
+      });
+      
+      console.log('Total rooms:', rooms.length, 'Filtered rooms:', filteredRooms.length);
+      setChatRooms(filteredRooms);
+      
+      // Fetch last message for filtered rooms
+      await fetchLastMessages(filteredRooms);
     } catch (err) {
-      console.error('Failed to fetch chat rooms', err);
-      if (err?.response?.status !== 404) {
-        Alert.alert('Error', 'Failed to load messages');
-      }
-      setChatRooms([]);
+      console.error('Failed to fetch chat rooms:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  const handleRefresh = () => {
+  const fetchLastMessages = async (rooms) => {
+    try {
+      const messagesMap = {};
+      
+      // Fetch last message for each room (limit 1)
+      await Promise.all(
+        rooms.map(async (room) => {
+          try {
+            const msgResponse = await api.get(`/api/v1/chat/rooms/${room.id}/messages`, {
+              params: { page: 1, limit: 1 }
+            });
+            const messages = msgResponse.data.messages || [];
+            if (messages.length > 0) {
+              messagesMap[room.id] = messages[0];
+            }
+          } catch (err) {
+            console.error(`Failed to fetch messages for room ${room.id}:`, err);
+          }
+        })
+      );
+      
+      setLastMessages(messagesMap);
+      
+      // Sort rooms by last message time
+      sortRoomsByActivity(rooms, messagesMap);
+    } catch (err) {
+      console.error('Failed to fetch last messages:', err);
+    }
+  };
+
+  const sortRoomsByActivity = (rooms, messagesMap) => {
+    const sortedRooms = [...rooms].sort((a, b) => {
+      const lastMessageA = messagesMap[a.id];
+      const lastMessageB = messagesMap[b.id];
+      
+      // Get the most recent time for each room (either last message or room creation)
+      const timeA = lastMessageA 
+        ? new Date(lastMessageA.created_at).getTime() 
+        : new Date(a.created_at).getTime();
+      const timeB = lastMessageB 
+        ? new Date(lastMessageB.created_at).getTime() 
+        : new Date(b.created_at).getTime();
+      
+      // Sort descending (most recent first)
+      return timeB - timeA;
+    });
+    
+    setChatRooms(sortedRooms);
+  };
+
+  const onRefresh = () => {
     setRefreshing(true);
     fetchChatRooms();
   };
 
   const handleRoomPress = (room) => {
-    // TODO: Navigate to chat detail screen
-    Alert.alert('Chat', `Opening chat for ${room.event?.title || 'Event'}`);
+    console.log('Opening chat room:', room.id, 'Event:', room.event?.title);
+    router.push({
+      pathname: '/chat-room',
+      params: { 
+        roomId: room.id,
+        eventTitle: room.event?.title || 'Chat',
+        from: 'messages'
+      }
+    });
   };
 
-  const renderChatRoom = ({ item }) => {
-    const hasUnread = item.unread_count > 0;
-    const lastMessage = item.last_message;
-    const eventTitle = item.event?.title || 'Event Chat';
-    
-    return (
-      <TouchableOpacity
-        style={styles.roomCard}
-        onPress={() => handleRoomPress(item)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.avatarContainer}>
-          {item.event?.cover_image_url ? (
-            <View style={styles.avatar}>
-              <Ionicons name="images" size={24} color={COLORS.redwine} />
-            </View>
-          ) : (
-            <View style={styles.avatar}>
-              <Ionicons name="people" size={24} color={COLORS.redwine} />
-            </View>
-          )}
-          {hasUnread && <View style={styles.unreadBadge} />}
-        </View>
-        
-        <View style={styles.roomContent}>
-          <View style={styles.roomHeader}>
-            <Text style={styles.roomTitle} numberOfLines={1}>
-              {eventTitle}
-            </Text>
-            {lastMessage?.created_at && (
-              <Text style={styles.timeText}>
-                {formatTime(lastMessage.created_at)}
-              </Text>
-            )}
-          </View>
-          
-          <View style={styles.messageRow}>
-            <Text
-              style={[styles.lastMessage, hasUnread && styles.unreadMessage]}
-              numberOfLines={1}
-            >
-              {lastMessage?.message || 'No messages yet'}
-            </Text>
-            {hasUnread && (
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>{item.unread_count}</Text>
-              </View>
-            )}
-          </View>
-          
-          <View style={styles.metaRow}>
-            <Ionicons name="people-outline" size={12} color={COLORS.textLight} />
-            <Text style={styles.metaText}>
-              {item.member_count || 0} members
-            </Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const formatTime = (timestamp) => {
-    const date = new Date(timestamp);
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diffMs = now - date;
     const diffMins = Math.floor(diffMs / 60000);
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
   };
 
-  if (loading) {
+  const renderChatRoom = ({ item }) => {
+    const lastMessage = lastMessages[item.id];
+    
     return (
-      <SafeAreaView style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={COLORS.redwine} />
-        <Text style={styles.loadingText}>Loading messages...</Text>
+      <TouchableOpacity 
+        style={styles.roomCard}
+        onPress={() => handleRoomPress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.roomIcon}>
+          <Ionicons name="people" size={24} color={COLORS.redwine} />
+        </View>
+        
+        <View style={styles.roomContent}>
+          <View style={styles.roomHeader}>
+            <Text style={styles.roomTitle} numberOfLines={1}>
+              {item.event?.title || 'Event Chat'}
+            </Text>
+            <Text style={styles.roomTime}>
+              {lastMessage 
+                ? formatDate(lastMessage.created_at)
+                : formatDate(item.created_at)
+              }
+            </Text>
+          </View>
+          
+          <Text style={styles.roomLocation} numberOfLines={1}>
+            {item.event?.address_text || 'No location'}
+          </Text>
+          
+          {lastMessage && (
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {lastMessage.sender?.full_name || 'Someone'}: {lastMessage.body || 'Message'}
+            </Text>
+          )}
+          
+          <View style={styles.roomFooter}>
+            <View style={styles.memberBadge}>
+              <Ionicons name="person" size={12} color={COLORS.textLight} />
+              <Text style={styles.memberCount}>
+                {item.event?.member_count || 0} members
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
+      </TouchableOpacity>
+    );
+  };
+
+  const renderEmpty = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="chatbubbles-outline" size={80} color={COLORS.textLight} />
+      <Text style={styles.emptyTitle}>No Chats Yet</Text>
+      <Text style={styles.emptyText}>
+        Join an event to start chatting with other members
+      </Text>
+    </View>
+  );
+
+  if (loading && !refreshing) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Messages</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.redwine} />
+        </View>
       </SafeAreaView>
     );
   }
@@ -135,28 +219,28 @@ export default function MessagesScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Messages</Text>
-        <Text style={styles.headerSubtitle}>Chat with your trip members</Text>
+        <Text style={styles.headerSubtitle}>
+          {chatRooms.length} {chatRooms.length === 1 ? 'conversation' : 'conversations'}
+        </Text>
       </View>
 
-      {chatRooms.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-          <Text style={styles.emptyText}>No messages yet</Text>
-          <Text style={styles.emptySubtext}>
-            Join events to start chatting with other travelers
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={chatRooms}
-          renderItem={renderChatRoom}
-          keyExtractor={(item) => item.id || item.event_id}
-          contentContainerStyle={styles.listContent}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
+      <FlatList
+        data={chatRooms}
+        renderItem={renderChatRoom}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={[
+          styles.listContainer,
+          chatRooms.length === 0 && styles.emptyList
+        ]}
+        ListEmptyComponent={renderEmpty}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.redwine}
+          />
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -164,12 +248,6 @@ export default function MessagesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: COLORS.background,
   },
   header: {
@@ -186,40 +264,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textLight,
   },
-  listContent: {
-    paddingTop: 8,
-  },
-  roomCard: {
-    flexDirection: 'row',
-    padding: 16,
-    backgroundColor: '#fff',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#f5f5f5',
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  unreadBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: COLORS.redwine,
-    borderWidth: 2,
-    borderColor: '#fff',
+  listContainer: {
+    padding: 16,
+  },
+  emptyList: {
+    flex: 1,
+  },
+  roomCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  roomIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fee',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   roomContent: {
     flex: 1,
-    justifyContent: 'center',
   },
   roomHeader: {
     flexDirection: 'row',
@@ -234,73 +313,51 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
-  timeText: {
+  roomTime: {
     fontSize: 12,
     color: COLORS.textLight,
   },
-  messageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
+  roomLocation: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 6,
   },
   lastMessage: {
-    fontSize: 14,
-    color: '#999',
-    flex: 1,
+    fontSize: 13,
+    color: COLORS.textLight,
+    marginBottom: 6,
+    fontStyle: 'italic',
   },
-  unreadMessage: {
-    color: '#333',
-    fontWeight: '500',
-  },
-  countBadge: {
-    backgroundColor: COLORS.redwine,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
-  },
-  countText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  metaRow: {
+  roomFooter: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  metaText: {
+  memberBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  memberCount: {
     fontSize: 12,
-    color: COLORS.textLight,
-    marginLeft: 4,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#f0f0f0',
-    marginLeft: 84,
-  },
-  loadingText: {
-    marginTop: 12,
     color: COLORS.textLight,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 16,
+    marginBottom: 8,
   },
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 16,
-  },
-  emptySubtext: {
     fontSize: 14,
     color: COLORS.textLight,
-    marginTop: 8,
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

@@ -12,50 +12,24 @@ export default function AppLayout() {
           backgroundColor: '#fff',
           borderTopWidth: 1,
           borderTopColor: '#eee',
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          paddingBottom: 20,
+          paddingTop: 8,
+          height: 80,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
         },
         headerShown: false,
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Discover',
+          title: 'Home',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="compass" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="liked"
-        options={{
-          title: 'Liked',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="heart" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="my-events"
-        options={{
-          title: 'My Trips',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: 'Messages',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubble" size={size} color={color} />
           ),
         }}
       />
@@ -69,12 +43,44 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
+        name="my-events"
+        options={{
+          title: 'My Events',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: 'Chat',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubble" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
           ),
+        }}
+      />
+      {/* Hide chat-room from tabs - it's a detail page */}
+      <Tabs.Screen
+        name="chat-room"
+        options={{
+          href: null,
+        }}
+      />
+      {/* Hide event-details from tabs - it's a detail page */}
+      <Tabs.Screen
+        name="event-details"
+        options={{
+          href: null,
         }}
       />
       {/* Hide welcome from tabs */}
