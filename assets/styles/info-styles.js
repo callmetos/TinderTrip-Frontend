@@ -29,7 +29,7 @@ export const styles = StyleSheet.create({
     
   },
 
-  image: {
+  avatar: {
     height: 69, 
     width: 69, 
     borderRadius: 32, 
@@ -71,8 +71,10 @@ export const styles = StyleSheet.create({
    text: {
     marginLeft: 40,
     padding: 8, 
+    paddingRight: 4,
     fontWeight: "600",
-    placeholderTextColor: "#6A2E35"
+    placeholderTextColor: "#999"
+    
   },
 
   textInput: {
@@ -165,8 +167,11 @@ export const styles = StyleSheet.create({
     alignItems: 'center'
   },
 
-  genderAgeSelected: {
-    width: 150
+  genderSelected: {
+    width: 170
+  },
+  AgeSelected: {
+    width: 117,
   },
   
   fillBack: {
@@ -191,8 +196,19 @@ export const styles = StyleSheet.create({
 
   box: {
    position: 'absolute',
-   top: 484 ,
+   top: 494 ,
    right: 1
+  },
+  twoColRow: {
+  flexDirection: 'row',
+  alignItems: 'flex-start',
+  flexWrap: 'nowrap',        // กันไม่ให้ตัดบรรทัด
+  },
+  col: {
+    flex: 1,                   // แบ่งพื้นที่เท่ากัน
+    minWidth: 0,
+    marginRight: -50,
+    
   },
 
   nextButton: {
