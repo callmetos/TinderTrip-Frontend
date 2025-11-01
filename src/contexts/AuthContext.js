@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { COLORS } from '../../color/colors';
+import { setAuthToken } from '../api/client';
 
 const AuthContext = createContext(null);
 
@@ -31,13 +32,16 @@ export const AuthProvider = ({ children }) => {
       const userData = await AsyncStorage.getItem('USER_DATA');
       
       if (token && userData) {
+        setAuthToken(token); // Set token in API client
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
       } else {
+        setAuthToken(null); // Clear token in API client
         setIsAuthenticated(false);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      setAuthToken(null); // Clear token on error
       setIsAuthenticated(false);
     } finally {
       setIsLoading(false);
@@ -48,6 +52,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.setItem('TOKEN', token);
       await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
+      setAuthToken(token); // Set token in API client
       setUser(userData);
       setIsAuthenticated(true);
       // navigate to welcome
@@ -66,6 +71,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.removeItem('TOKEN');
       await AsyncStorage.removeItem('USER_DATA');
+      setAuthToken(null); // Clear token in API client
       setUser(null);
       setIsAuthenticated(false);
       try {

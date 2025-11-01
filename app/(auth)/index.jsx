@@ -26,8 +26,8 @@ export default function Index() {
       
       if (token) {
         // Has JWT token - go to welcome
-        console.log('Token found, redirecting to welcome');
-        router.replace('/welcome');
+        console.log('Token found, redirecting to home');
+        router.replace('/home');
       } else {
         // No JWT token - go to login
         console.log('No token found, redirecting to login');
