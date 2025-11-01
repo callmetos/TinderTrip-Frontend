@@ -8,7 +8,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { styles } from '../../assets/styles/info-styles.js';
 import { COLORS } from '../../color/colors.js';
 import ProtectedRoute from '../../src/components/ProtectedRoute.jsx';
-import { useAuth } from '../../src/contexts/AuthContext.jsx';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function InformationScreen() {
   const { user } = useAuth();
