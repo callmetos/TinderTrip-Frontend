@@ -4,7 +4,7 @@ import { View, Text, ActivityIndicator } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { COLORS } from '../../color/colors';
 
-const ProtectedRoute = ({ children, requireAuth = true }) => {
+export const ProtectedRoute = ({ children, requireAuth = true }) => {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
@@ -44,7 +44,7 @@ const ProtectedRoute = ({ children, requireAuth = true }) => {
   }
 
   // แสดง children component
-  return children;
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 
@@ -25,12 +26,44 @@ export default function EventDetailsScreen() {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [authToken, setAuthToken] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
+
+  useEffect(() => {
+    loadAuthToken();
+    loadCurrentUser();
+  }, []);
 
   useEffect(() => {
     if (id) {
       fetchEventDetails();
     }
   }, [id]);
+
+  const loadAuthToken = async () => {
+    try {
+      const token = await AsyncStorage.getItem('TOKEN');
+      setAuthToken(token);
+    } catch (err) {
+      console.error('Failed to load auth token:', err);
+    }
+  };
+
+  const loadCurrentUser = async () => {
+    try {
+      let userStr = await AsyncStorage.getItem('USER_DATA');
+      if (!userStr) {
+        userStr = await AsyncStorage.getItem('user');
+      }
+      
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        setCurrentUserId(user.id);
+      }
+    } catch (err) {
+      console.error('Failed to load user:', err);
+    }
+  };
 
   const handleGoBack = () => {
     if (from) {
@@ -95,6 +128,54 @@ export default function EventDetailsScreen() {
     }
   };
 
+  const handleConfirmAttendance = async () => {
+    try {
+      setJoining(true);
+      await api.post(`/api/v1/events/${id}/confirm`);
+      Alert.alert('Success', 'You confirmed your attendance!');
+      fetchEventDetails(); // Refresh to update status
+    } catch (err) {
+      console.error('Failed to confirm attendance', err);
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message || 'Failed to confirm attendance';
+      
+      if (status === 409) {
+        Alert.alert('Info', 'You have already confirmed this event');
+        fetchEventDetails();
+      } else {
+        Alert.alert('Error', message);
+      }
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleOpenChat = async () => {
+    try {
+      // Get chat room for this event
+      const roomsResponse = await api.get('/api/v1/chat/rooms');
+      const rooms = roomsResponse.data?.rooms || [];
+      const eventRoom = rooms.find(room => room.event_id === id);
+      
+      if (eventRoom) {
+        router.push({
+          pathname: '/chat-room',
+          params: {
+            roomId: eventRoom.id,
+            eventId: id,
+            eventTitle: event?.title || 'Chat',
+            from: from || 'event-details'
+          }
+        });
+      } else {
+        Alert.alert('Error', 'Chat room not found');
+      }
+    } catch (err) {
+      console.error('Failed to open chat', err);
+      Alert.alert('Error', 'Failed to open chat');
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -140,13 +221,15 @@ export default function EventDetailsScreen() {
     0;
 
   return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
       {/* Fixed Cover Image - Behind Everything */}
       <View style={styles.fixedCoverSection}>
         {event.cover_image_url ? (
           <Image
-            // source={{ uri: event.cover_image_url }}
-            source={require('../../assets/images/vertigo-rooftop-restaurant.jpg')}
+            source={{ 
+              uri: event.cover_image_url,
+              headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+            }}
             style={styles.coverImage}
             resizeMode="cover"
           />
@@ -310,24 +393,113 @@ export default function EventDetailsScreen() {
 
       {/* Bottom Action Bar */}
       <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.joinButton, joining && styles.joinButtonDisabled]}
-          onPress={handleJoinEvent}
-          disabled={joining}
-        >
-          {joining ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="checkmark-circle" size={22} color="#fff" />
-              <Text style={styles.joinButtonText}>Join Event</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Check user status and show appropriate buttons */}
+        {(() => {
+          const isCreator = currentUserId === event?.creator_id;
+          const isJoined = event?.is_joined;
+          const userMember = event?.members?.find(m => m.user_id === currentUserId);
+          const isConfirmed = userMember?.status === 'confirmed';
+          const isPending = userMember?.status === 'pending';
+
+          // Case 1: Creator - Show Chat button and badge
+          if (isCreator) {
+            return (
+              <TouchableOpacity
+                style={styles.chatButton}
+                onPress={handleOpenChat}
+              >
+                <Ionicons name="chatbubble" size={22} color="#fff" />
+                <Text style={styles.chatButtonText}>Open Chat</Text>
+              </TouchableOpacity>
+            );
+          }
+
+          // Case 2: Confirmed member - Show Chat button and badge
+          if (isConfirmed) {
+            return (
+              <TouchableOpacity
+                style={styles.chatButton}
+                onPress={handleOpenChat}
+              >
+                <Ionicons name="chatbubble" size={22} color="#fff" />
+                <Text style={styles.chatButtonText}>Open Chat</Text>
+              </TouchableOpacity>
+            );
+          }
+
+          // Case 3: Not joined - Show Join button
+          if (!isJoined) {
+            return (
+              <TouchableOpacity
+                style={[styles.joinButton, joining && styles.joinButtonDisabled]}
+                onPress={handleJoinEvent}
+                disabled={joining}
+              >
+                {joining ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                    <Text style={styles.joinButtonText}>Join Event</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            );
+          }
+
+          // Case 3: Joined but not confirmed (pending) - Show Chat and Confirm buttons
+          if (isPending) {
+            return (
+              <View style={styles.buttonRow}>
+                <TouchableOpacity
+                  style={styles.chatButtonHalf}
+                  onPress={handleOpenChat}
+                >
+                  <Ionicons name="chatbubble" size={20} color="#fff" />
+                  <Text style={styles.chatButtonText}>Chat</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.confirmButtonHalf, joining && styles.joinButtonDisabled]}
+                  onPress={handleConfirmAttendance}
+                  disabled={joining}
+                >
+                  {joining ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-done" size={20} color="#fff" />
+                      <Text style={styles.confirmButtonText}>Confirm</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            );
+          }
+
+          // Default: Show join button
+          return (
+            <TouchableOpacity
+              style={[styles.joinButton, joining && styles.joinButtonDisabled]}
+              onPress={handleJoinEvent}
+              disabled={joining}
+            >
+              {joining ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={22} color="#fff" />
+                  <Text style={styles.joinButtonText}>Join Event</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          );
+        })()}
       </View>
-      </View>
+    </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -619,6 +791,56 @@ const styles = StyleSheet.create({
     backgroundColor: '#ccc',
   },
   joinButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  chatButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.redwine,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 16,
+    gap: 8,
+    elevation: 4,
+    shadowColor: COLORS.redwine,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  chatButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  chatButtonHalf: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.redwine,
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 6,
+  },
+  confirmButtonHalf: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#28a745',
+    paddingVertical: 16,
+    borderRadius: 16,
+    gap: 6,
+  },
+  confirmButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: '#fff',

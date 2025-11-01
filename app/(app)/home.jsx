@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, memo } from 'react';
 import { Image, Text, TouchableOpacity, View, ActivityIndicator, Alert, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Swiper from 'react-native-deck-swiper';
@@ -12,7 +13,7 @@ const PAGE_LIMIT = 20;
 const PRELOAD_THRESHOLD = 3;
 
 // Memoized Card Component
-const Card = memo(({ event, onPress }) => {
+const Card = memo(({ event, onPress, authToken }) => {
   const capacity = event?.capacity ?? event?.max_capacity ?? null;
   const joined =
     event?.attendees_count ??
@@ -26,10 +27,14 @@ const Card = memo(({ event, onPress }) => {
       <View style={styles.cardContainer}>
       {event?.cover_image_url ? (
         <Image
-          // source={{ uri: event.cover_image_url }}
-          source={require('../../assets/images/vertigo-rooftop-restaurant.jpg')}
+          source={{
+            uri: event.cover_image_url,
+            headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+          }}
           style={styles.cardImage}
           resizeMode="cover"
+          onError={(e) => console.warn('Image failed:', event?.cover_image_url, e?.nativeEvent?.error)}
+          onLoad={() => console.log('Image loaded:', event?.cover_image_url)}
         />
       ) : (
         <View style={styles.placeholderImage}>
@@ -79,9 +84,23 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [authToken, setAuthToken] = useState(null);
 
   useEffect(() => {
     fetchEvents(INITIAL_PAGE, false);
+  }, []);
+
+  // Load auth token for protected image requests
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('TOKEN');
+        setAuthToken(token);
+        if (token) console.log('Loaded auth token for images');
+      } catch (e) {
+        console.warn('Failed to load token for images');
+      }
+    })();
   }, []);
 
   const fetchEvents = async (page = INITIAL_PAGE, append = false) => {
@@ -98,6 +117,36 @@ export default function Home() {
       const data = res?.data?.data || [];
       const meta = res?.data?.meta;
 
+      console.log('📦 Raw events data:', data.length, 'events');
+      console.log('🖼️ Events with cover_image_url:', data.filter(e => e.cover_image_url).length);
+
+      // Fetch photos for each event
+      const eventsWithPhotos = await Promise.all(
+        data.map(async (event) => {
+          console.log(`Event ${event.title}: original cover_image_url =`, event.cover_image_url);
+          try {
+            const photosRes = await api.get(`/api/v1/events/${event.id}/photos`);
+            const photos = photosRes?.data?.data || photosRes?.data || [];
+            console.log(`📸 Event ${event.id}: ${photos.length} photos`, photos.length > 0 ? photos[0].url : 'no photos');
+            return {
+              ...event,
+              photos: photos,
+              cover_image_url: photos.length > 0 ? photos[0].url : event.cover_image_url
+            };
+          } catch (err) {
+            // Silently handle 404 - event might not have photos
+            if (err?.response?.status !== 404) {
+              console.error(`Failed to fetch photos for event ${event.id}`, err);
+            } else {
+              console.log(`⚠️ Event ${event.id}: No photos endpoint (404), using original:`, event.cover_image_url);
+            }
+            return event;
+          }
+        })
+      );
+
+      console.log(`✅ Fetched ${eventsWithPhotos.length} events with photos`);
+
       // Determine hasMore using meta if available, else by page size
       if (meta && typeof meta.total_pages === 'number') {
         setHasMore(page < meta.total_pages);
@@ -105,7 +154,7 @@ export default function Home() {
         setHasMore(data.length === PAGE_LIMIT);
       }
 
-      setEvents((prev) => (append ? [...prev, ...data] : data));
+      setEvents((prev) => (append ? [...prev, ...eventsWithPhotos] : eventsWithPhotos));
       setCurrentPage(page);
     } catch (err) {
       console.error('Failed to fetch events', err);
@@ -135,7 +184,7 @@ export default function Home() {
       if (direction === 'right') {
         try {
           await api.post(`/api/v1/events/${eventId}/join`);
-          console.log('✅ Auto-joined event:', eventId);
+          console.log('Auto-joined event:', eventId);
         } catch (joinErr) {
           const status = joinErr?.response?.status;
           if (status === 409) {
@@ -280,7 +329,8 @@ export default function Home() {
             renderCard={(card) => 
               card ? (
                 <Card 
-                  event={card} 
+                  event={card}
+                  authToken={authToken}
                   onPress={() => router.push({
                     pathname: '/event-details',
                     params: { id: card.id, from: 'home' }

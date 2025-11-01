@@ -22,16 +22,16 @@ export default function MyEventsScreen() {
   const fetchMyEvents = async () => {
     try {
       setLoading(true);
-      // Fetch all published events
-      const res = await api.get('/api/v1/events', {
-        params: { page: 1, limit: 100, status: 'published' },
+      // Fetch only joined events using dedicated endpoint
+      const res = await api.get('/api/v1/events/joined', {
+        params: { page: 1, limit: 100 },
       });
       
-      const allEvents = res?.data?.data || [];
+      const joinedEvents = res?.data?.data || [];
       
       // Fetch photos for each event
       const eventsWithPhotos = await Promise.all(
-        allEvents.map(async (event) => {
+        joinedEvents.map(async (event) => {
           try {
             const photosRes = await api.get(`/api/v1/events/${event.id}/photos`);
             const photos = photosRes?.data?.data || photosRes?.data || [];
@@ -50,7 +50,7 @@ export default function MyEventsScreen() {
         })
       );
 
-      console.log('Total events:', eventsWithPhotos.length);
+      console.log('Total joined events:', eventsWithPhotos.length);
       setEvents(eventsWithPhotos);
     } catch (err) {
       console.error('Failed to fetch my events', err);

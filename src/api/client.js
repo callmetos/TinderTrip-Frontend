@@ -14,16 +14,20 @@ export const setAuthToken = (t) => {
 
 // ใส่ Header กลางทุกคำขอ
 api.interceptors.request.use((config) => {
-  config.headers = { 
-    ...(config.headers || {}), 
-    'Content-Type': 'application/json'
-  };
-  
+  // Ensure headers object exists
+  config.headers = { ...(config.headers || {}) };
+
+  // Only set Content-Type to application/json if it's not a FormData upload and not already specified
+  const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData;
+  if (!isFormData && !config.headers['Content-Type']) {
+    config.headers['Content-Type'] = 'application/json';
+  }
+
   // เพิ่ม JWT token หากมี
   if (authToken) {
     config.headers.Authorization = `Bearer ${authToken}`;
   }
-  
+
   return config;
 });
 

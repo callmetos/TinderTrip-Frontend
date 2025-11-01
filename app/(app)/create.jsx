@@ -268,6 +268,31 @@ export default function CreateEventScreen() {
       }
 
       const res = await api.post('/api/v1/events', payload);
+      const created = res?.data?.data || res?.data;
+      const eventId = created?.id;
+      console.log('Event created:', eventId);
+
+      // If user selected a cover image, upload it as event cover
+      if (eventId && selectedImage) {
+        try {
+          const formData = new FormData();
+          // Derive filename and mime type
+          const uri = selectedImage.uri;
+          const name = selectedImage.fileName || `cover_${eventId}.jpg`;
+          const type = selectedImage.mimeType || 'image/jpeg';
+          formData.append('file', { uri, name, type });
+
+          console.log('Uploading cover image for event:', eventId);
+          await api.put(`/api/v1/events/${eventId}/cover`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          console.log('Cover uploaded successfully');
+        } catch (uploadErr) {
+          console.error('Failed to upload cover image', uploadErr);
+          // Do not block event creation success; just inform the user
+          Alert.alert('Cover Upload Failed', uploadErr?.userMessage || 'Event created, but the cover image could not be uploaded. You can try editing the event to add a cover later.');
+        }
+      }
       
       Alert.alert(
         'Success',

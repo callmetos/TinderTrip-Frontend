@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 
@@ -17,6 +18,14 @@ export default function ChatListScreen() {
     fetchChatRooms();
   }, []);
 
+  // Re-fetch chat rooms whenever the screen gains focus (e.g., after leaving an event)
+  useFocusEffect(
+    useCallback(() => {
+      fetchChatRooms();
+      return undefined;
+    }, [])
+  );
+
   const fetchChatRooms = async () => {
     try {
       setLoading(true);
@@ -25,20 +34,30 @@ export default function ChatListScreen() {
       const response = await api.get('/api/v1/chat/rooms');
       const rooms = response.data.rooms || [];
       
-      // Fetch user's joined events to filter chat rooms
-      const eventsResponse = await api.get('/api/v1/events', {
-        params: { page: 1, limit: 100, status: 'published' },
+      // Fetch user's joined events using dedicated endpoint
+      const eventsResponse = await api.get('/api/v1/events/joined', {
+        params: { page: 1, limit: 100 },
       });
-      const allEvents = eventsResponse?.data?.data || [];
-      const joinedEvents = allEvents.filter(event => event.is_joined === true);
+      const joinedEvents = eventsResponse?.data?.data || [];
       const joinedEventIds = joinedEvents.map(event => event.id);
       
-      console.log('Joined event IDs:', joinedEventIds);
+      // Create a map of event data from joined events (has complete member data)
+      const eventDataMap = {};
+      joinedEvents.forEach(event => {
+        eventDataMap[event.id] = event;
+      });
       
-      // Filter rooms to only show those for joined events
+      console.log('Joined event IDs:', joinedEventIds);
+      console.log('Event data map:', eventDataMap);
+      
+      // Filter rooms to only show those for joined events and merge complete event data
       const filteredRooms = rooms.filter(room => {
         const isJoined = joinedEventIds.includes(room.event_id);
-        console.log('Room:', room.id, 'Event:', room.event_id, 'Is Joined:', isJoined);
+        // Replace room's event data with complete data from joined events
+        if (isJoined && eventDataMap[room.event_id]) {
+          room.event = eventDataMap[room.event_id];
+        }
+        console.log('Room:', room.id, 'Event:', room.event_id, 'Member count:', room.event?.member_count, 'Members:', room.event?.members?.length);
         return isJoined;
       });
       
@@ -116,6 +135,7 @@ export default function ChatListScreen() {
       pathname: '/chat-room',
       params: { 
         roomId: room.id,
+        eventId: room.event?.id,
         eventTitle: room.event?.title || 'Chat',
         from: 'messages'
       }
@@ -181,7 +201,14 @@ export default function ChatListScreen() {
             <View style={styles.memberBadge}>
               <Ionicons name="person" size={12} color={COLORS.textLight} />
               <Text style={styles.memberCount}>
-                {item.event?.member_count || 0} members
+                {(() => {
+                  // Calculate members from members array or use member_count
+                  const memberCount = item.event?.members?.filter(m => m.status === 'confirmed').length 
+                    || item.event?.member_count 
+                    || 0;
+                  const capacity = item.event?.capacity || 0;
+                  return `${memberCount}/${capacity} people`;
+                })()}
               </Text>
             </View>
           </View>
