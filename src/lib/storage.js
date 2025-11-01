@@ -6,7 +6,17 @@ const KEYS = {
   DISPLAY_NAME: 'DISPLAY_NAME',
   PASSWORD: 'PASSWORD',
   VERIFY_REGISTER: 'VERIFY_REGISTER',
-  OTP: 'OTP'
+  OTP: 'OTP',
+
+  NAME: 'NAME',
+  BIO: 'BIO',
+  LANGUAGES: 'LANGUAGES',
+  DATE_OF_BIRTH: 'DATE_OF_BIRTH',
+  GENDER: 'GENDER',
+  AGE: 'AGE',
+  JOB_TITLE: 'JOB_TITLE',
+  SMOKING: 'SMOKING',
+  INTERESTS: 'INTERESTS'
 };
 
 export async function saveToken(token) {
@@ -101,3 +111,5 @@ export async function loadOTP() {
 export async function clearOTP() {
   await AsyncStorage.removeItem(KEYS.OTP);
 }
+
+//information
