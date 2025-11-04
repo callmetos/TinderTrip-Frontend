@@ -168,7 +168,7 @@ export default function InformationScreen() {
 
           setAge(
             parsedUser.age !== undefined && parsedUser.age !== null
-              ? int(parsedUser.age)
+              ? (isNaN(parseInt(parsedUser.age, 10)) ? "" : parseInt(parsedUser.age, 10))
               : ""
           );
 
@@ -218,22 +218,32 @@ export default function InformationScreen() {
       const genderToSend  = toBackendGender(gender);
       const smokingToSend = toBackendSmoking(smoking);
 
+      const displayNameToSend = (name ?? "").trim();
+
       const payload = {
         avatar_url: user?.avatar_url ?? user?.photo_url ?? user?.imageUrl ?? "",
         bio: (bio ?? "").trim(),
         date_of_birth: formattedDob,
-        gender: genderToSend,           
-        age: age || "",
+  gender: genderToSend,           
+  age: Number.isInteger(age) ? age : null,
         interests_note: (interests ?? "").trim(),
         job_title: jobTitle || "",
         languages: (selectedLanguage ?? "").trim(), 
         smoking: smokingToSend,         
       };
 
+      // ส่งชื่อเฉพาะเมื่อผู้ใช้กรอกค่า (กันการลบชื่อโดยไม่ได้ตั้งใจ)
+      if (displayNameToSend) {
+        payload.display_name = displayNameToSend;
+      }
+
       const response = await updateUserProfile(payload);
       console.log("Profile update response:", response);
 
       const mergedUser = { ...(user || {}), ...payload };
+      if (displayNameToSend) {
+        mergedUser.display_name = displayNameToSend;
+      }
       setUser(mergedUser);
       await AsyncStorage.setItem("USER_DATA", JSON.stringify(mergedUser));
 
@@ -387,8 +397,8 @@ export default function InformationScreen() {
           <TextInput
             value={name}
             onChangeText={setName}
-            autoCapitalize="none"
-            placeholder="Meow Meow"
+            autoCapitalize="words"
+            placeholder="John Smith"
             style={styles.textInput}
           />
 

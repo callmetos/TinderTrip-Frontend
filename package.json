@@ -36,11 +36,8 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.4",
-<<<<<<< HEAD
     "react-native-date-picker": "^5.0.13",
-=======
     "react-native-deck-swiper": "^2.0.6",
->>>>>>> f79bcdd (feat: implement complete event management and chat system)
     "react-native-gesture-handler": "~2.28.0",
     "react-native-get-random-values": "^1.11.0",
     "react-native-keyboard-aware-scroll-view": "^0.9.5",

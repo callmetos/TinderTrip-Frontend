@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
@@ -39,6 +40,13 @@ export default function EventDetailsScreen() {
       fetchEventDetails();
     }
   }, [id]);
+
+  // Refresh details whenever screen gains focus (e.g., after confirming in chat)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (id) fetchEventDetails();
+    }, [id])
+  );
 
   const loadAuthToken = async () => {
     try {
@@ -396,39 +404,33 @@ export default function EventDetailsScreen() {
         {/* Check user status and show appropriate buttons */}
         {(() => {
           const isCreator = currentUserId === event?.creator_id;
-          const isJoined = event?.is_joined;
-          const userMember = event?.members?.find(m => m.user_id === currentUserId);
-          const isConfirmed = userMember?.status === 'confirmed';
-          const isPending = userMember?.status === 'pending';
+          const member = event?.members?.find(m => m.user_id === currentUserId);
+          const membershipStatus = member?.status || event?.member_status || (event?.is_confirmed ? 'confirmed' : null);
+          const hasJoined = Boolean(event?.is_joined || member);
+          const hasConfirmed = membershipStatus === 'confirmed' || Boolean(event?.is_confirmed);
 
-          // Case 1: Creator - Show Chat button and badge
+          // 1) Creator => Chat only
           if (isCreator) {
             return (
-              <TouchableOpacity
-                style={styles.chatButton}
-                onPress={handleOpenChat}
-              >
+              <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
                 <Ionicons name="chatbubble" size={22} color="#fff" />
                 <Text style={styles.chatButtonText}>Open Chat</Text>
               </TouchableOpacity>
             );
           }
 
-          // Case 2: Confirmed member - Show Chat button and badge
-          if (isConfirmed) {
+          // 2) Confirmed member => Chat only
+          if (hasConfirmed) {
             return (
-              <TouchableOpacity
-                style={styles.chatButton}
-                onPress={handleOpenChat}
-              >
+              <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
                 <Ionicons name="chatbubble" size={22} color="#fff" />
                 <Text style={styles.chatButtonText}>Open Chat</Text>
               </TouchableOpacity>
             );
           }
 
-          // Case 3: Not joined - Show Join button
-          if (!isJoined) {
+          // 3) Not joined at all => Join button
+          if (!hasJoined) {
             return (
               <TouchableOpacity
                 style={[styles.joinButton, joining && styles.joinButtonDisabled]}
@@ -447,52 +449,29 @@ export default function EventDetailsScreen() {
             );
           }
 
-          // Case 3: Joined but not confirmed (pending) - Show Chat and Confirm buttons
-          if (isPending) {
-            return (
-              <View style={styles.buttonRow}>
-                <TouchableOpacity
-                  style={styles.chatButtonHalf}
-                  onPress={handleOpenChat}
-                >
-                  <Ionicons name="chatbubble" size={20} color="#fff" />
-                  <Text style={styles.chatButtonText}>Chat</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[styles.confirmButtonHalf, joining && styles.joinButtonDisabled]}
-                  onPress={handleConfirmAttendance}
-                  disabled={joining}
-                >
-                  {joining ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <>
-                      <Ionicons name="checkmark-done" size={20} color="#fff" />
-                      <Text style={styles.confirmButtonText}>Confirm</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-              </View>
-            );
-          }
-
-          // Default: Show join button
+          // 4) Joined but not confirmed => show Chat + Confirm (ตามที่ผู้ใช้ต้องการ)
           return (
-            <TouchableOpacity
-              style={[styles.joinButton, joining && styles.joinButtonDisabled]}
-              onPress={handleJoinEvent}
-              disabled={joining}
-            >
-              {joining ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle" size={22} color="#fff" />
-                  <Text style={styles.joinButtonText}>Join Event</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity style={styles.chatButtonHalf} onPress={handleOpenChat}>
+                <Ionicons name="chatbubble" size={20} color="#fff" />
+                <Text style={styles.chatButtonText}>Chat</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmButtonHalf, joining && styles.joinButtonDisabled]}
+                onPress={handleConfirmAttendance}
+                disabled={joining}
+              >
+                {joining ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-done" size={20} color="#fff" />
+                    <Text style={styles.confirmButtonText}>Confirm</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           );
         })()}
       </View>
@@ -536,7 +515,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 100,
+    height: 500,
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   fixedFloatingHeader: {
@@ -835,7 +814,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#28a745',
+    backgroundColor: '#24953eff',
     paddingVertical: 16,
     borderRadius: 16,
     gap: 6,

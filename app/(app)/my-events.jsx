@@ -3,6 +3,7 @@ import { View, Text, FlatList, Image, TouchableOpacity, ActivityIndicator, Style
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 
@@ -19,9 +20,21 @@ export default function MyEventsScreen() {
     fetchMyEvents();
   }, []);
 
-  const fetchMyEvents = async () => {
+  // Refresh automatically whenever the screen gains focus (navigate to My Trips)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Use refreshing indicator if we already have data to avoid full-screen flicker
+      fetchMyEvents(false);
+    }, [])
+  );
+
+  const fetchMyEvents = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
       // Fetch only joined events using dedicated endpoint
       const res = await api.get('/api/v1/events/joined', {
         params: { page: 1, limit: 100 },
@@ -56,14 +69,14 @@ export default function MyEventsScreen() {
       console.error('Failed to fetch my events', err);
       Alert.alert('Error', 'Failed to load your events');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
       setRefreshing(false);
     }
   };
 
   const handleRefresh = () => {
-    setRefreshing(true);
-    fetchMyEvents();
+    // Pull-to-refresh: show only the refreshing indicator
+    fetchMyEvents(false);
   };
 
   const handleLeaveEvent = async (eventId) => {

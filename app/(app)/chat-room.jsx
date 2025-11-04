@@ -33,6 +33,8 @@ export default function ChatRoomScreen() {
   const [eventData, setEventData] = useState(null);
   const [confirming, setConfirming] = useState(false);
   const flatListRef = useRef(null);
+  const pollingIntervalRef = useRef(null);
+  const lastMessageIdRef = useRef(null);
 
   useEffect(() => {
     loadCurrentUser();
@@ -43,7 +45,15 @@ export default function ChatRoomScreen() {
     if (roomId) {
       console.log('Chat Room - Loading room:', roomId, 'Event:', eventTitle);
       fetchMessages();
+      
+      // Start polling for new messages every 3 seconds
+      startPolling();
     }
+    
+    // Cleanup polling on unmount
+    return () => {
+      stopPolling();
+    };
   }, [roomId]);
 
   const handleGoBack = () => {
@@ -143,6 +153,10 @@ export default function ChatRoomScreen() {
       
       if (pageNum === 1) {
         setMessages(newMessages.reverse());
+        // Track the latest message ID for polling
+        if (newMessages.length > 0) {
+          lastMessageIdRef.current = newMessages[newMessages.length - 1].id;
+        }
       } else {
         setMessages([...newMessages.reverse(), ...messages]);
       }
@@ -154,6 +168,68 @@ export default function ChatRoomScreen() {
       Alert.alert('Error', 'Failed to load messages');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Polling function to check for new messages
+  const startPolling = () => {
+    // Clear any existing interval
+    stopPolling();
+    
+    // Poll every 3 seconds
+    pollingIntervalRef.current = setInterval(() => {
+      checkForNewMessages();
+    }, 3000);
+  };
+
+  const stopPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  };
+
+  const checkForNewMessages = async () => {
+    try {
+      // Fetch latest messages without showing loading indicator
+      const response = await api.get(`/api/v1/chat/rooms/${roomId}/messages`, {
+        params: {
+          page: 1,
+          limit: 10, // Only fetch latest 10 to reduce bandwidth
+        }
+      });
+      
+      const latestMessages = response.data.messages || [];
+      
+      if (latestMessages.length > 0) {
+        const latestMessageId = latestMessages[latestMessages.length - 1].id;
+        
+        // Check if there are new messages
+        if (lastMessageIdRef.current && latestMessageId !== lastMessageIdRef.current) {
+          // Find new messages that we don't have yet
+          const newMessages = latestMessages.filter(msg => {
+            return !messages.some(existingMsg => existingMsg.id === msg.id);
+          });
+          
+          if (newMessages.length > 0) {
+            console.log('Found', newMessages.length, 'new messages');
+            setMessages(prevMessages => [...prevMessages, ...newMessages.reverse()]);
+            
+            // Auto-scroll to bottom if user is near the bottom
+            setTimeout(() => {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }, 100);
+          }
+          
+          lastMessageIdRef.current = latestMessageId;
+        } else if (!lastMessageIdRef.current) {
+          // First poll, just set the reference
+          lastMessageIdRef.current = latestMessageId;
+        }
+      }
+    } catch (err) {
+      // Silently fail for polling to avoid spamming user with errors
+      console.error('Polling error:', err);
     }
   };
 
@@ -173,7 +249,11 @@ export default function ChatRoomScreen() {
       });
 
       // Add new message to list
-      setMessages([...messages, response.data]);
+      const newMessage = response.data;
+      setMessages(prevMessages => [...prevMessages, newMessage]);
+      
+      // Update last message ID reference
+      lastMessageIdRef.current = newMessage.id;
       
       // Scroll to bottom
       setTimeout(() => {

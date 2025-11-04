@@ -3,7 +3,7 @@ import { api } from './client.js';
 /** Get user profile */
 export async function getUserProfile() {
   const res = await api.get("/api/v1/users/profile");
-  return data; 
+  return res.data; 
 }
 /** Update user profile (send partial fields) */
 export async function updateUserProfile(payload) {
@@ -28,13 +28,13 @@ export async function updateUserProfile(payload) {
 /** Delete user profile */
 export async function deleteUserProfile() {
   const res = await api.delete("/api/v1/users/profile");
-  return data; 
+  return res.data; 
 }
 
 /** Get user setup status */
 export async function getUserSetupStatus() {
   const res = await api.get("/api/v1/users/setup-status");
-  return data; 
+  return res.data; 
 }
 
 
