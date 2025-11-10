@@ -296,6 +296,11 @@ export default function InformationScreen() {
       setSubmitSuccess("Profile updated successfully!");
       scrollRef.current?.scrollTo({ y: 0, animated: true });
 
+      // Auto-dismiss success message after 2 seconds
+      setTimeout(() => {
+        setSubmitSuccess(null);
+      }, 2000);
+
       // Auto navigate back after success in edit mode
       if (isEdit) {
         setTimeout(() => {
@@ -316,6 +321,11 @@ export default function InformationScreen() {
       console.error("Profile update failed:", error);
       setSubmitError(error?.userMessage || error?.message || "Failed to update profile.");
       scrollRef.current?.scrollTo({ y: 0, animated: true });
+      
+      // Auto-dismiss error message after 3 seconds
+      setTimeout(() => {
+        setSubmitError(null);
+      }, 3000);
     } finally {
       setIsSubmitting(false);
     }

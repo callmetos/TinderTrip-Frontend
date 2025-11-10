@@ -177,7 +177,13 @@ export default function MyEventsScreen() {
           <View style={styles.metaRow}>
             <Ionicons name="calendar-outline" size={14} color={COLORS.textLight} />
             <Text style={styles.metaText}>
-              {item.start_at ? new Date(item.start_at).toLocaleDateString() : 'TBA'}
+              {item.start_at ? (() => {
+                const d = new Date(item.start_at);
+                const day = d.getDate();
+                const month = d.toLocaleString('en-US', { month: 'long' });
+                const year = d.getFullYear();
+                return `${day} ${month} ${year}`;
+              })() : 'TBA'}
             </Text>
           </View>
           

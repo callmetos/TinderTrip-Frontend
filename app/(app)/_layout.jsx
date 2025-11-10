@@ -69,11 +69,14 @@ export default function AppLayout() {
           ),
         }}
       />
-      {/* Hide chat-room from tabs - it's a detail page */}
+      {/* Hide chat-room from tabs - it's a detail page but keep tab bar visible */}
       <Tabs.Screen
         name="chat-room"
         options={{
           href: null,
+          tabBarStyle: {
+            display: 'flex',
+          },
         }}
       />
       {/* Hide event-details from tabs - it's a detail page */}

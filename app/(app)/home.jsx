@@ -49,6 +49,22 @@ const Card = memo(({ event, onPress, authToken }) => {
         <Text style={styles.cardDescription} numberOfLines={3}>
           {event?.description}
         </Text>
+        
+        {event?.start_at && (
+          <View style={styles.cardMetaRow}>
+            <Ionicons name="calendar-outline" size={16} color={COLORS.textLight} />
+            <Text style={styles.cardMetaText} numberOfLines={1}>
+              {(() => {
+                const d = new Date(event.start_at);
+                const day = d.getDate();
+                const month = d.toLocaleString('en-US', { month: 'short' });
+                const year = d.getFullYear();
+                return `${day} ${month} ${year}`;
+              })()}
+            </Text>
+          </View>
+        )}
+        
         <Text style={styles.cardAddress} numberOfLines={1}>
           📍 {event?.address_text}
         </Text>

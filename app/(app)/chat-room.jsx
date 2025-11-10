@@ -471,7 +471,7 @@ export default function ChatRoomScreen() {
         ]}>
           {!isCurrentUser && (
             <Text style={styles.senderName}>
-              {item.sender?.full_name || item.sender?.email || 'Unknown'}
+              {item.sender?.display_name || item.sender?.full_name || item.sender?.name || 'Unknown'}
             </Text>
           )}
           
@@ -571,27 +571,36 @@ export default function ChatRoomScreen() {
                   const capacity = eventData.capacity || 0;
                   const spotsLeft = Math.max(0, capacity - confirmedCount);
                   
-                  return `• ${spotsLeft} spots left`;
+                  return spotsLeft === 0 ? '• Full' : `• ${spotsLeft} spots left`;
                 })()}
               </Text>
             </View>
 
             {/* Only show button if not creator and not already joined */}
-            {!eventData.is_joined && currentUserId !== eventData.creator_id && (
-              <TouchableOpacity 
-                style={[styles.confirmButton, confirming && styles.confirmButtonDisabled]}
-                onPress={handleConfirmAttendance}
-                disabled={confirming}
-              >
-                {confirming ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.confirmButtonText}>
-                    I'll going
-                  </Text>
-                )}
-              </TouchableOpacity>
-            )}
+            {!eventData.is_joined && currentUserId !== eventData.creator_id && (() => {
+              const confirmedCount = eventData.members?.filter(m => m.status === 'confirmed').length || eventData.member_count || 0;
+              const capacity = eventData.capacity || 0;
+              const isFull = confirmedCount >= capacity;
+              
+              return (
+                <TouchableOpacity 
+                  style={[
+                    styles.confirmButton, 
+                    (confirming || isFull) && styles.confirmButtonDisabled
+                  ]}
+                  onPress={handleConfirmAttendance}
+                  disabled={confirming || isFull}
+                >
+                  {confirming ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.confirmButtonText}>
+                      {isFull ? 'Full' : "I'll going"}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })()}
 
             {/* Show confirmed status */}
             {(eventData.is_joined || currentUserId === eventData.creator_id) && (

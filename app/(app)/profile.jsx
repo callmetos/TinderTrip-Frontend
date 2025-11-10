@@ -5,10 +5,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/color/colors';
 import { useAuth } from '../../src/contexts/AuthContext.js';
 import { getUserStats } from '../../src/api/user.service.js';
-import { getUserProfile } from '../../src/api/info.service.js';
+import { getUserProfile, updateUserProfile } from '../../src/api/info.service.js';
+import { setAuthToken } from '../../src/api/client.js';
+import { loadToken } from '../../src/lib/storage.js';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -121,6 +124,52 @@ export default function ProfileScreen() {
     router.push('/information?mode=edit');
   };
 
+  const handleAvatarPress = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera roll permissions to change your avatar.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const newAvatarUri = result.assets[0].uri;
+        
+        // Update local state immediately
+        const updatedUser = { ...localUser, avatar_url: newAvatarUri };
+        setLocalUser(updatedUser);
+        await AsyncStorage.setItem('USER_DATA', JSON.stringify(updatedUser));
+        
+        // Update on server
+        try {
+          const token = await loadToken();
+          if (token) {
+            setAuthToken(token);
+            await updateUserProfile({ avatar_url: newAvatarUri });
+          }
+        } catch (error) {
+          console.error('Failed to update avatar on server:', error);
+          // Keep local change even if server update fails
+        }
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
   const menuItems = [
     {
       icon: 'person-outline',
@@ -156,6 +205,7 @@ export default function ProfileScreen() {
 
   const displayName = localUser?.display_name || localUser?.email?.split('@')[0] || user?.display_name || user?.email?.split('@')[0] || 'Guest';
   const email = localUser?.email || user?.email || '';
+  const avatarUrl = localUser?.avatar_url || user?.avatar_url || user?.photo_url || user?.imageUrl || null;
 
   return (
     <View style={styles.wrapper}>
@@ -185,13 +235,20 @@ export default function ProfileScreen() {
         >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {displayName.charAt(0).toUpperCase()}
-              </Text>
+          <TouchableOpacity style={styles.avatarContainer} onPress={handleAvatarPress} activeOpacity={0.8}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {displayName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.avatarEditButton}>
+              <Ionicons name="camera" size={16} color="#fff" />
             </View>
-          </View>
+          </TouchableOpacity>
           
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{email}</Text>
@@ -275,6 +332,7 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     marginBottom: 16,
+    position: 'relative',
   },
   avatar: {
     width: 80,
@@ -283,6 +341,24 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.redwine,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  avatarEditButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   avatarText: {
     fontSize: 32,
