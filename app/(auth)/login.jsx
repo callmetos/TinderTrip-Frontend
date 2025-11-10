@@ -199,25 +199,31 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAwareScrollView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: COLORS.background }}
       contentContainerStyle={{ flexGrow: 1 }}
       enableOnAndroid={true}
       enableAutomaticScroll={true}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.container}>
-        {/* Logo */}
+        {/* Logo Section */}
         <View style={{ 
-          flexDirection: "row", 
           alignItems: "center", 
-          marginBottom: 20, 
-          justifyContent: "center" 
+          marginBottom: 40,
+          marginTop: 20,
         }}>
           <Image 
             source={require("../../assets/images/Login-page/logo.png")} 
             style={styles.logo} 
           />
           <Text style={styles.logoText}>TinderTrip</Text>
+          <Text style={{ 
+            fontSize: 16, 
+            color: COLORS.textLight,
+            marginTop: 5,
+          }}>
+            Find your travel companion
+          </Text>
         </View>
 
         {/* Error Notification */}
@@ -228,14 +234,15 @@ export default function LoginScreen() {
         />
 
         {/* Email Input */}
-        <View>
+        <View style={{ marginBottom: 20 }}>
           <Text style={{
-            marginLeft: 50,
-            padding: 8,
-            fontWeight: "500",
+            marginLeft: 35,
+            marginBottom: 8,
+            fontSize: 15,
+            fontWeight: "600",
             color: COLORS.textDark
           }}>
-            Email
+            Email Address
           </Text>
           <TextInput
             value={email}
@@ -253,11 +260,12 @@ export default function LoginScreen() {
         </View>
 
         {/* Password Input */}
-        <View>
+        <View style={{ marginBottom: 10 }}>
           <Text style={{
-            marginLeft: 50,
-            padding: 8,
-            fontWeight: "500",
+            marginLeft: 35,
+            marginBottom: 8,
+            fontSize: 15,
+            fontWeight: "600",
             color: COLORS.textDark
           }}>
             Password
@@ -277,11 +285,13 @@ export default function LoginScreen() {
         </View>
 
         {/* Forgot Password Link */}
-        <Link href="/forgot-password" asChild>
-          <TouchableOpacity disabled={loading || googleLoading}>
-            <Text style={styles.linkText}>Forget password</Text>
-          </TouchableOpacity>
-        </Link>
+        <TouchableOpacity 
+          style={styles.forgotPasswordContainer}
+          onPress={() => router.push('/forgot-password')}
+          disabled={loading || googleLoading}
+        >
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
 
         {/* Login Button */}
         <TouchableOpacity 
@@ -298,30 +308,39 @@ export default function LoginScreen() {
             <Text style={{ 
               color: COLORS.background, 
               fontWeight: 'bold', 
-              fontSize: 16 
+              fontSize: 17 
             }}>
               Login
             </Text>
           )}
         </TouchableOpacity>
 
-        {/* Sign Up Link */}
+        {/* Divider */}
         <View style={{ 
-          flexDirection: "row", 
-          alignItems: "center", 
-          marginTop: 10, 
-          justifyContent: "center" 
+          flexDirection: 'row', 
+          alignItems: 'center', 
+          marginVertical: 25,
+          paddingHorizontal: 30,
         }}>
-          <Text>Don't have an account?    
-            <Link href="/sign-up" asChild>
-              <TouchableOpacity disabled={loading || googleLoading}>
-                <Text style={styles.linkText}>Sign Up</Text>
-              </TouchableOpacity>
-            </Link>
+          <View style={{ 
+            flex: 1, 
+            height: 1, 
+            backgroundColor: COLORS.border 
+          }} />
+          <Text style={{ 
+            marginHorizontal: 15,
+            color: COLORS.textLight,
+            fontSize: 14,
+            fontWeight: '500'
+          }}>
+            or continue with
           </Text>
+          <View style={{ 
+            flex: 1, 
+            height: 1, 
+            backgroundColor: COLORS.border 
+          }} />
         </View>
-
-        <Text style={{ textAlign: 'center', padding: 20 }}>or</Text>
 
         {/* Google Sign In Button */}
         <TouchableOpacity 
@@ -333,13 +352,14 @@ export default function LoginScreen() {
           disabled={loading || googleLoading}
         >
           {googleLoading ? (
-            <ActivityIndicator color={COLORS.primary} />
+            <ActivityIndicator color={COLORS.redwine} />
           ) : (
             <>
-              <Ionicons name="logo-google" size={24} color={COLORS.primary} />
+              <Ionicons name="logo-google" size={24} color={COLORS.redwine} />
               <Text style={{ 
                 fontSize: 16, 
-                color: COLORS.primary,
+                color: COLORS.redwine,
+                fontWeight: '600',
                 marginLeft: 8
               }}>
                 Continue with Google
@@ -347,6 +367,30 @@ export default function LoginScreen() {
             </>
           )}
         </TouchableOpacity>
+
+        {/* Sign Up Link */}
+        <View style={{ 
+          flexDirection: "row", 
+          alignItems: "center", 
+          marginTop: 30, 
+          justifyContent: "center" 
+        }}>
+          <Text style={{ fontSize: 15, color: COLORS.textDark }}>
+            Don't have an account?{' '}
+          </Text>
+          <TouchableOpacity 
+            onPress={() => router.push('/sign-up')}
+            disabled={loading || googleLoading}
+          >
+            <Text style={{ 
+              color: COLORS.redwine, 
+              fontSize: 15, 
+              fontWeight: '700' 
+            }}>
+              Sign Up
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </KeyboardAwareScrollView>
   );

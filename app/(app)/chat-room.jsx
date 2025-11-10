@@ -19,6 +19,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { 
   requestNotificationPermissions, 
   showMessageNotification,
@@ -30,6 +31,7 @@ export default function ChatRoomScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { roomId, eventId, eventTitle, from } = params;
+  const { user } = useAuth(); // Get user from AuthContext
   
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -50,7 +52,12 @@ export default function ChatRoomScreen() {
   const panResponder = useRef(null);
 
   useEffect(() => {
-    loadCurrentUser();
+    // Set current user ID from AuthContext
+    if (user?.id) {
+      setCurrentUserId(user.id);
+      console.log('Current user ID from AuthContext:', user.id, 'Type:', typeof user.id);
+    }
+    
     fetchEventData();
     requestNotificationPermissions();
     
@@ -119,7 +126,7 @@ export default function ChatRoomScreen() {
         responseListener.current.remove();
       }
     };
-  }, []);
+  }, [user]);
 
   // Setup edge-swipe (left edge -> swipe right) to go to messages
   useEffect(() => {
@@ -178,27 +185,6 @@ export default function ChatRoomScreen() {
       seen.add(msg.id);
       return true;
     });
-  };
-
-  const loadCurrentUser = async () => {
-    try {
-      // Try USER_DATA first (main key used in AuthContext)
-      let userStr = await AsyncStorage.getItem('USER_DATA');
-      if (!userStr) {
-        // Fallback to 'user' for compatibility
-        userStr = await AsyncStorage.getItem('user');
-      }
-      
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCurrentUserId(user.id);
-        console.log('Current user ID loaded:', user.id);
-      } else {
-        console.warn('No user data found in AsyncStorage');
-      }
-    } catch (err) {
-      console.error('Failed to load user:', err);
-    }
   };
 
   const fetchEventData = async () => {
@@ -457,9 +443,17 @@ export default function ChatRoomScreen() {
   };
 
   const renderMessage = ({ item, index }) => {
-    const isCurrentUser = item.sender_id === currentUserId;
+    // Convert both to strings for comparison to handle type mismatch
+    const isCurrentUser = String(item.sender_id) === String(currentUserId);
     const previousMsg = index > 0 ? messages[index - 1] : null;
     const showDateHeader = shouldShowDateHeader(item, previousMsg);
+    
+    // Debug log
+    // if (index === 0) {
+    //   console.log('Message sender_id:', item.sender_id, 'Type:', typeof item.sender_id);
+    //   console.log('Current user ID:', currentUserId, 'Type:', typeof currentUserId);
+    //   console.log('Is current user?', isCurrentUser);
+    // }
 
     return (
       <View>
