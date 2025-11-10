@@ -321,20 +321,8 @@ export default function InformationScreen() {
     }
   };
 
-  const handleSkip = () => {
-    // Skip without saving - just go to home
-    router.push("/home");
-  };
-
-  const avatarSource = avatarUri
-    ? { uri: avatarUri }
-    : user?.photo_url
-    ? { uri: user.photo_url }
-    : user?.imageUrl
-    ? { uri: user.imageUrl }
-    : user?.avatar_url
-    ? { uri: user.avatar_url }
-    : require("../../assets/images/image 6.png");
+  const displayName = user?.display_name || name || user?.email?.split('@')[0] || 'User';
+  const avatarSource = avatarUri || user?.photo_url || user?.imageUrl || user?.avatar_url;
 
   const handleAvatarPress = async () => {
     try {
@@ -463,24 +451,25 @@ export default function InformationScreen() {
               backgroundColor: COLORS.primary,
               paddingVertical: 24,
               paddingHorizontal: 20,
-              borderBottomLeftRadius: 30,
-              borderBottomRightRadius: 30,
               marginBottom: 30,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.15,
-              shadowRadius: 12,
-              elevation: 8,
             }}>
               <View style={styles.headerLeft}>
                 <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
-                  <Image source={avatarSource} style={styles.avatar} />
+                  {avatarSource ? (
+                    <Image source={{ uri: avatarSource }} style={styles.avatar} />
+                  ) : (
+                    <View style={[styles.avatar, { backgroundColor: COLORS.redwine, justifyContent: 'center', alignItems: 'center' }]}>
+                      <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#fff' }}>
+                        {displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
                   <TouchableOpacity 
                     style={styles.editButton} 
-                    onPress={handleCameraPress}
+                    onPress={handleAvatarPress}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="camera" size={18} color={COLORS.white}/>
+                    <Ionicons name="pencil" size={16} color={COLORS.white}/>
                   </TouchableOpacity>
                 </TouchableOpacity>
 
@@ -586,7 +575,13 @@ export default function InformationScreen() {
             ) : (
               <TouchableOpacity style={styles.selected} onPress={handleDatePress}>
                 <Text style={{ color: date ? COLORS.text : '#999', fontSize: 16 }}>
-                  {date ? date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "Select your birthday"}
+                  {date ? (() => {
+                    const d = new Date(date);
+                    const day = d.getDate();
+                    const month = d.toLocaleString('en-US', { month: 'long' });
+                    const year = d.getFullYear(); // This will be CE year
+                    return `${day} ${month} ${year}`;
+                  })() : "Select your birthday"}
                 </Text>
                 <Ionicons name='calendar' size={20} color={COLORS.primary} />
               </TouchableOpacity>
@@ -604,6 +599,7 @@ export default function InformationScreen() {
                     maximumDate={new Date()}
                     onChange={handleIOSDateChange}
                     themeVariant="light"
+                    locale="en-US"
                   />
 
                   <View style={styles.dateModalActions}>
@@ -784,14 +780,6 @@ export default function InformationScreen() {
               </>
             )}
           </TouchableOpacity>
-
-          {!isEdit && (
-            <TouchableOpacity onPress={handleSkip}>
-              <Text style={styles.linkText}>
-                Skip<Ionicons name="play-skip-forward-outline" />
-              </Text>
-            </TouchableOpacity>
-          )}
 
         </View>
         

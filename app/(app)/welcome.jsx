@@ -1,6 +1,6 @@
 import { COLORS } from '@/color/colors';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,9 +12,17 @@ import { isWeb } from '../../src/utils/platform.js';
 
 const WelcomeScreen = () => {
   const router = useRouter();
+  const navigation = useNavigation();
   const { logout, user } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Hide tab bar in welcome screen
+  useEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: { display: 'none' },
+    });
+  }, [navigation]);
 
   useEffect(() => {
     let mounted = true;
@@ -27,24 +35,23 @@ const WelcomeScreen = () => {
 
         if (!mounted) return;
 
-        // If profile is already completed, send user to home. Otherwise to information page.
+        // If profile is already completed, send user to home directly
         if (setupCompleted) {
           router.replace('/home');
         } else {
-          router.replace('/information');
+          // Profile not completed - show welcome page with Get Started button
+          setLoading(false);
         }
       } catch (err) {
-        // If unauthorized, redirect to login. Otherwise show an alert and keep user on welcome.
+        // If unauthorized, redirect to login
         const status = err?.response?.status;
         if (status === 401) {
           router.replace('/login');
         } else {
           console.error('Failed to fetch setup status', err);
-          // Use native alert as a fallback
-          Alert.alert('Error', 'Unable to check setup status. Please try again later.');
+          // Allow user to proceed with Get Started button
+          if (mounted) setLoading(false);
         }
-      } finally {
-        if (mounted) setLoading(false);
       }
     };
 
