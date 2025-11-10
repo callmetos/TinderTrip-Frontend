@@ -153,6 +153,7 @@ export const styles = StyleSheet.create({
     width: "100%",
     textAlign: "left",
     letterSpacing: 2,
+    justifyContent: "center",
   },
   resendLink: {
     color: COLORS.primary,

@@ -91,7 +91,7 @@ export default function ForgotPassword() {
         <View style={styles.formContainer}>
           <Text style = {styles.verificationTitle}>Forget password?</Text>
           <Text style = {styles.verificationText}>
-            Don't worry! Enter your email address and we'll send you a verification code to reset your password.
+            Don&apos;t worry! Enter your email address and we&apos;ll send you a verification code to reset your password.
           </Text>
           
           <TextInput

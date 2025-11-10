@@ -2,11 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    Image,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Image,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { styles } from "../../assets/styles/forget-styles.js";
@@ -112,7 +112,7 @@ export default function Verification() {
         
         setSuccess("Email verified successfully!");
         setTimeout(() => {
-          router.replace("/");
+          router.replace("/welcome");
         }, 2000);
         
       } else {

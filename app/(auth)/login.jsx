@@ -3,15 +3,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Link, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useRef, useState } from 'react';
-import { 
+import {
   ActivityIndicator,
-  Image, 
+  Image,
   Keyboard,
-  Platform, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  View 
+  Platform,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { styles } from '../../assets/styles/auth-styles.js';
@@ -291,10 +291,10 @@ export default function LoginScreen() {
           marginTop: 10, 
           justifyContent: "center" 
         }}>
-          <Text>Don't have an account?    
+          <Text>Don&apos;t have an account?    
             <Link href="/sign-up" asChild>
               <TouchableOpacity disabled={loading || googleLoading}>
-                <Text style={styles.linkText}>Sign Up</Text>
+                <Text style={[styles.linkText , styles.linkSignUp] }>Sign Up</Text>
               </TouchableOpacity>
             </Link>
           </Text>
