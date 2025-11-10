@@ -26,7 +26,6 @@ export const validatePassword = (password) => {
   if (password.length < 8) {
     return { isValid: false, error: 'Password must be at least 8 characters' };
   }
-  // เพิ่มเงื่อนไขความซับซ้อนของรหัสผ่าน
   const hasUpper = /[A-Z]/.test(password);
   const hasLower = /[a-z]/.test(password);
   const hasNumber = /\d/.test(password);

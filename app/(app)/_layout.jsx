@@ -90,6 +90,20 @@ export default function AppLayout() {
           href: null,
         }}
       />
+      {/* Hide information from tabs */}
+      <Tabs.Screen
+        name="information"
+        options={{
+          href: null,
+        }}
+      />
+      {/* Hide notification-settings from tabs */}
+      <Tabs.Screen
+        name="notification-settings"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

@@ -31,16 +31,26 @@ export const AuthProvider = ({ children }) => {
       const token = await AsyncStorage.getItem('TOKEN');
       const userData = await AsyncStorage.getItem('USER_DATA');
       
+      if (__DEV__) {
+        console.log('[AuthContext] Checking auth:', {
+          hasToken: !!token,
+          hasUserData: !!userData,
+          tokenLength: token?.length,
+        });
+      }
+      
       if (token && userData) {
         setAuthToken(token); // Set token in API client
         setUser(JSON.parse(userData));
         setIsAuthenticated(true);
+        if (__DEV__) console.log('[AuthContext] User authenticated');
       } else {
         setAuthToken(null); // Clear token in API client
         setIsAuthenticated(false);
+        if (__DEV__) console.log('[AuthContext] User not authenticated');
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      if (__DEV__) console.error('[AuthContext] Auth check failed:', error);
       setAuthToken(null); // Clear token on error
       setIsAuthenticated(false);
     } finally {
@@ -50,19 +60,30 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (userData, token) => {
     try {
+      if (__DEV__) {
+        console.log('[AuthContext] Logging in user:', {
+          hasUserData: !!userData,
+          hasToken: !!token,
+          tokenLength: token?.length,
+        });
+      }
+      
       await AsyncStorage.setItem('TOKEN', token);
       await AsyncStorage.setItem('USER_DATA', JSON.stringify(userData));
       setAuthToken(token); // Set token in API client
       setUser(userData);
       setIsAuthenticated(true);
+      
+  if (__DEV__) console.log('[AuthContext] Login successful, navigating to /welcome');
+      
       // navigate to welcome
       try {
         router.replace('/welcome');
       } catch (e) {
-        // ignore navigation errors
+        if (__DEV__) console.error('[AuthContext] Navigation error:', e);
       }
     } catch (error) {
-      console.error('Login failed:', error);
+      if (__DEV__) console.error('[AuthContext] Login failed:', error);
       throw error;
     }
   };
@@ -80,7 +101,7 @@ export const AuthProvider = ({ children }) => {
         // ignore
       }
     } catch (error) {
-      console.error('Logout failed:', error);
+      if (__DEV__) console.error('Logout failed:', error);
       throw error;
     }
   };

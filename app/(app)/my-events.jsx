@@ -238,9 +238,9 @@ export default function MyEventsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>My Trips</Text>
+        <Text style={styles.headerTitle}>My Events</Text>
         <Text style={styles.headerSubtitle}>Events you've joined</Text>
       </View>
 

@@ -2,10 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { Picker } from '@react-native-picker/picker';
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, Modal, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useEffect, useState, useRef } from "react";
+import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import { styles } from '../../assets/styles/info-styles.js';
 import { COLORS } from '../../color/colors.js';
 import { setAuthToken } from '../../src/api/client.js';
@@ -103,6 +104,9 @@ const WebDateInput = ({ value, onChange }) => {
 export default function InformationScreen() {
   const [user, setUser] = useState(null);
   const router = useRouter();
+  const { mode, from } = useLocalSearchParams();
+  const isEdit = String(mode || "").toLowerCase() === "edit";
+  const scrollRef = useRef(null);
 
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -121,19 +125,30 @@ export default function InformationScreen() {
   const [jobTitle, setJobTitle] = useState("");
   const [smoking, setSmoking] = useState(""); 
   const [interests, setInterests] = useState("");
+  const [avatarUri, setAvatarUri] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(null);
 
+  // Calculate age from date of birth
   useEffect(() => {
-    if (!date) { setAge(null); return; }
+    if (!date) { 
+      setAge(null); 
+      return; 
+    }
     const today = new Date();
     const dob = new Date(date);
     let a = today.getFullYear() - dob.getFullYear();
     const m = today.getMonth() - dob.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) a--;
-    setAge(a); 
+    
+    // Validate minimum age (e.g., 13 years old)
+    if (a < 13) {
+      setAge(null);
+    } else {
+      setAge(a);
+    }
   }, [date]);
 
 
@@ -190,6 +205,19 @@ export default function InformationScreen() {
   const handleNext = async () => {
     if (isSubmitting) return;
 
+    // Validation
+    if (!name?.trim()) {
+      setSubmitError("Please enter your name");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
+    if (age && age < 13) {
+      setSubmitError("You must be at least 13 years old");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
     setSubmitError(null);
     setSubmitSuccess(null);
     setIsSubmitting(true);
@@ -200,116 +228,122 @@ export default function InformationScreen() {
 
       setAuthToken(token);
 
-      let formattedDob = "";
-
+      // Format date of birth consistently
+      let formattedDob = null;
       if (date instanceof Date && !Number.isNaN(date.getTime())) {
-        // clone date object, set time to 00:00:00 (local)
         const fixedDate = new Date(date);
         fixedDate.setHours(0, 0, 0, 0);
-        formattedDob = fixedDate.toISOString(); // full ISO string e.g. "2025-11-01T00:00:00.000Z"
-      } else if (typeof date === "string" && date.trim()) {
-        // convert from "YYYY-MM-DD" string to Date then ISO
-        const parsed = new Date(`${date}T00:00:00Z`);
-        formattedDob = parsed.toISOString();
-      } else {
-        formattedDob = null; // ส่ง null ถ้าไม่มีวันเกิด
+        formattedDob = fixedDate.toISOString();
       }
 
-      const genderToSend  = toBackendGender(gender);
+      const genderToSend = toBackendGender(gender);
       const smokingToSend = toBackendSmoking(smoking);
-
       const displayNameToSend = (name ?? "").trim();
 
+      const avatarCandidate = avatarUri || user?.avatar_url || user?.photo_url || user?.imageUrl || null;
+      
       const payload = {
-        avatar_url: user?.avatar_url ?? user?.photo_url ?? user?.imageUrl ?? "",
-        bio: (bio ?? "").trim(),
+        bio: (bio ?? "").trim() || null,
         date_of_birth: formattedDob,
-  gender: genderToSend,           
-  age: Number.isInteger(age) ? age : null,
-        interests_note: (interests ?? "").trim(),
-        job_title: jobTitle || "",
-        languages: (selectedLanguage ?? "").trim(), 
-        smoking: smokingToSend,         
+        age: Number.isInteger(age) ? age : null,
+        interests_note: (interests ?? "").trim() || null,
+        job_title: jobTitle || null,
+        languages: (selectedLanguage ?? "").trim() || null, 
       };
 
-      // ส่งชื่อเฉพาะเมื่อผู้ใช้กรอกค่า (กันการลบชื่อโดยไม่ได้ตั้งใจ)
-      if (displayNameToSend) {
-        payload.display_name = displayNameToSend;
-      }
+      // Send only when values exist
+      if (genderToSend) payload.gender = genderToSend;
+      if (smokingToSend) payload.smoking = smokingToSend;
+      if (avatarCandidate) payload.avatar_url = avatarCandidate;
+      if (displayNameToSend) payload.display_name = displayNameToSend;
 
       const response = await updateUserProfile(payload);
       console.log("Profile update response:", response);
 
-      const mergedUser = { ...(user || {}), ...payload };
+      // Preserve existing fields like email when updating USER_DATA
+      const existingRaw = await AsyncStorage.getItem("USER_DATA");
+      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+
+      const mergedUser = { ...existing, ...(user || {}), ...payload };
       if (displayNameToSend) {
         mergedUser.display_name = displayNameToSend;
+      }
+      if (!mergedUser.email && existing?.email) {
+        mergedUser.email = existing.email;
       }
       setUser(mergedUser);
       await AsyncStorage.setItem("USER_DATA", JSON.stringify(mergedUser));
 
-      setSubmitSuccess("Profile updated successfully.");
+      setSubmitSuccess("Profile updated successfully!");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+
+      // Auto navigate back after success in edit mode
+      if (isEdit) {
+        setTimeout(() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.push("/profile");
+          }
+        }, 800);
+      } else {
+        // First time setup - go to home
+        setTimeout(() => {
+          router.push("/home");
+        }, 800);
+      }
       
     } catch (error) {
       console.error("Profile update failed:", error);
       setSubmitError(error?.userMessage || error?.message || "Failed to update profile.");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleSkip = async () => {
-  if (isSubmitting) return;
-
-  setSubmitError(null);
-  setSubmitSuccess(null);
-  setIsSubmitting(true);
-
-  try {
-    const token = await loadToken();
-    if (!token) throw new Error("Authentication token not found. Please log in again.");
-
-    setAuthToken(token);
-
-    const payload = {
-      // ถ้าต้องการเก็บ avatar เดิม ให้คงค่าไว้; ถ้าอยากล้างก็ใส่ null
-      avatar_url: user?.avatar_url ?? user?.photo_url ?? user?.imageUrl ?? null,
-
-      bio: null,
-      date_of_birth: null,
-      gender: null,
-      age: null,
-      interests_note: null,
-      job_title: null,
-      languages: null,
-      smoking: null,
-    };
-
-    // เรียก API ขาเดิม
-    await updateUserProfile(payload);
-
-    // sync ค่าใน storage ให้ตรงกับที่ส่ง (null)
-    const mergedUser = { ...(user || {}), ...payload };
-    setUser(mergedUser);
-    await AsyncStorage.setItem("USER_DATA", JSON.stringify(mergedUser));
-
-    // ไปหน้าถัดไป
+  const handleSkip = () => {
+    // Skip without saving - just go to home
     router.push("/home");
-  } catch (error) {
-    console.error("Skip update failed:", error);
-    setSubmitError(error?.userMessage || error?.message || "Failed to skip and update profile.");
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
-  const avatarSource = user?.photo_url
+  const avatarSource = avatarUri
+    ? { uri: avatarUri }
+    : user?.photo_url
     ? { uri: user.photo_url }
     : user?.imageUrl
     ? { uri: user.imageUrl }
-    : require("../../assets/images/image 6.png"); 
+    : user?.avatar_url
+    ? { uri: user.avatar_url }
+    : require("../../assets/images/image 6.png");
 
-  const handleAvatarPress = () => {
-    console.log("Change avatar pressed");
+  const handleAvatarPress = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera roll permissions to change your avatar.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
   };
 
   const handleDatePress = () => {
@@ -341,59 +375,110 @@ export default function InformationScreen() {
     setShowIOSDatePicker(false);
   };
 
-  const handleCameraPress = () => {
-    console.log("Camera icon pressed");
+  const handleCameraPress = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Please grant camera permissions to take a photo.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setAvatarUri(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
   };
 
   return (
     <ProtectedRoute requireAuth={true}>
-      <KeyboardAwareScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
-        enableOnAndroid={true}
-        enableAutomaticScroll={true}
-      >
-        <View style={styles.container}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={[]}>
+        <ScrollView
+          ref={scrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 20 }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
 
-          {submitError && (
-            <Text style={{ color: '#B00020', marginHorizontal: 40, marginBottom: 12 }}>
-              {submitError}
-            </Text>
-          )}
-
-          {submitSuccess && (
-            <Text style={{ color: COLORS.primary, marginHorizontal: 40, marginBottom: 12 }}>
-              {submitSuccess}
-            </Text>
-          )}
-
-          {/* Header */}
-          <View style ={{
-            backgroundColor: COLORS.redwine,
-            height: 100,
-            borderRadius: 45,
-            marginBottom: 10
-          }}>
-            <View style = {styles.headerLeft}>
-              <TouchableOpacity onPress={handleAvatarPress}>
-                <Image source={avatarSource} style={styles.avatar} />
-                <TouchableOpacity style={styles.editButton} onPress={handleCameraPress}>
-                  <Ionicons name="camera-outline" size={20} color={COLORS.white}/>
-                </TouchableOpacity>
-              </TouchableOpacity>
-
-              <View style = {styles.welcomeContainer}>
-                <Text style = {styles.welcomeText}>Hello, {user?.display_name}</Text>
-                <Text style = {styles.usernameText}>
-                  { user?.email?.split("@")[0] || 'User'}
+            {/* Fixed Error/Success Messages at Top */}
+            {(submitError || submitSuccess) && (
+              <View style={{
+                position: 'absolute',
+                top: 10,
+                left: 20,
+                right: 20,
+                zIndex: 1000,
+                backgroundColor: submitError ? '#FFEBEE' : '#E8F5E9',
+                padding: 12,
+                borderRadius: 8,
+                borderLeftWidth: 4,
+                borderLeftColor: submitError ? '#B00020' : COLORS.primary,
+              }}>
+                <Text style={{ 
+                  color: submitError ? '#B00020' : COLORS.primary, 
+                  fontSize: 14,
+                  fontWeight: '600'
+                }}>
+                  {submitError || submitSuccess}
                 </Text>
               </View>
+            )}
+
+            {/* Header */}
+            <View style={{
+              backgroundColor: COLORS.primary,
+              paddingVertical: 20,
+              paddingHorizontal: 20,
+              borderBottomLeftRadius: 30,
+              borderBottomRightRadius: 30,
+              marginBottom: 20,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 8,
+              elevation: 5,
+            }}>
+              <View style={styles.headerLeft}>
+                <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
+                  <Image source={avatarSource} style={styles.avatar} />
+                  <TouchableOpacity 
+                    style={styles.editButton} 
+                    onPress={handleCameraPress}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="camera-outline" size={20} color={COLORS.white}/>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+
+                <View style={styles.welcomeContainer}>
+                  <Text style={styles.welcomeText}>
+                    Hello, {user?.display_name || 'User'}
+                  </Text>
+                  <Text style={styles.usernameText}>
+                    {user?.email?.split("@")[0] || 'user@example.com'}
+                  </Text>
+                </View>
+              </View>
             </View>
-          </View>
 
-          <Text style={styles.title}>Information</Text>
+          <Text style={styles.title}>{isEdit ? "Edit Profile" : "Information"}</Text>
 
-          <Text style={styles.text}>Name:</Text>
+          <Text style={styles.text}>Name <Text style={{ color: '#e74c3c' }}>*</Text></Text>
           <TextInput
             value={name}
             onChangeText={setName}
@@ -402,7 +487,7 @@ export default function InformationScreen() {
             style={styles.textInput}
           />
 
-          <Text style={styles.text}>Bio:</Text>
+          <Text style={styles.text}>Bio</Text>
           <TextInput
             value={bio}
             onChangeText={setBio}
@@ -411,7 +496,7 @@ export default function InformationScreen() {
             style={styles.textInput}
           />
 
-          <Text style={styles.text}>Languages:</Text>
+          <Text style={styles.text}>Languages</Text>
           <View>
             <TouchableOpacity onPress={() => setShowLanguagePicker(true)} style={styles.selected}>
               <Text style={{ color: selectedLanguage ? COLORS.text : "#999", fontSize: 16 }}>
@@ -430,6 +515,7 @@ export default function InformationScreen() {
                   <Picker
                     selectedValue={selectedLanguage}
                     onValueChange={(itemValue) => setSelectedLanguage(itemValue)}
+                    itemStyle={{ color: '#222' }}
                   >
                     <Picker.Item label="Select your languages" value="" />
                     <Picker.Item label="Thai" value="Thai" />
@@ -451,7 +537,7 @@ export default function InformationScreen() {
             </Modal>
           </View>
 
-          <Text style={styles.text}>Date of Birth:</Text>
+          <Text style={styles.text}>Date of Birth: <Text style={{ color: '#e74c3c' }}>*</Text></Text>
           {Platform.OS === "web" ? (
             // เว็บ: ใช้ input type="date"
             <View style={styles.selected}>
@@ -478,6 +564,7 @@ export default function InformationScreen() {
                     display="spinner"
                     maximumDate={new Date()}
                     onChange={handleIOSDateChange}
+                    themeVariant="light"
                   />
 
                   <View style={styles.dateModalActions}>
@@ -503,7 +590,7 @@ export default function InformationScreen() {
           <View style={styles.twoColRow}>
             {/* LEFT: Gender */}
             <View style={styles.col}>
-              <Text style={styles.text}>Gender:</Text>
+              <Text style={styles.text}>Gender</Text>
               <TouchableOpacity
                 onPress={() => setShowGenderPicker(true)}
                 style={[styles.selected, styles.genderSelected]}
@@ -525,7 +612,7 @@ export default function InformationScreen() {
                     <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
                       Select your sex
                     </Text>
-                    <Picker selectedValue={gender} onValueChange={setGender}>
+                    <Picker selectedValue={gender} onValueChange={setGender} itemStyle={{ color: '#222' }}>
                       <Picker.Item label="Sex" value="" />
                       {GENDER_OPTIONS.map(opt => (
                         <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
@@ -545,7 +632,7 @@ export default function InformationScreen() {
 
             {/* RIGHT: Age */}
             <View style={[styles.col]}>
-              <Text style={styles.text}>Age:</Text>
+              <Text style={styles.text}>Age</Text>
               <TextInput
                 value={Number.isInteger(age) ? String(age) : ""}  // ✅ แปลงเป็น string ตอนโชว์
                 editable={false}
@@ -572,7 +659,7 @@ export default function InformationScreen() {
               <View style={styles.fillButtom}>
                 <View style={styles.fillBack}>
                   <Text style={{ fontWeight: "bold", marginBottom: 8 }}>Select your job title</Text>
-                  <Picker selectedValue={jobTitle} onValueChange={setJobTitle}>
+                  <Picker selectedValue={jobTitle} onValueChange={setJobTitle} itemStyle={{ color: '#222' }}>
                     <Picker.Item label="job title" value="" />
                     <Picker.Item label="Graduated" value="Graduated" />
                     <Picker.Item label="Undergraduate" value="Undergraduate" />
@@ -590,7 +677,7 @@ export default function InformationScreen() {
             </Modal>
           </View>
 
-          <Text style={styles.text}>Smoking:</Text>
+          <Text style={styles.text}>Smoking</Text>
           <View>
             <TouchableOpacity onPress={() => setShowSmokingPicker(true)} style={styles.selected}>
               <Text style={{ color: smoking ? COLORS.text : "#999", fontSize: 16 }}>
@@ -606,7 +693,7 @@ export default function InformationScreen() {
               <View style={styles.fillButtom}>
                 <View style={styles.fillBack}>
                   <Text style={{ fontWeight: "bold", marginBottom: 8 }}>Are you smoking or not?</Text>
-                  <Picker selectedValue={smoking} onValueChange={setSmoking}>
+                  <Picker selectedValue={smoking} onValueChange={setSmoking} itemStyle={{ color: '#222' }}>
                     <Picker.Item label="Smoking or not" value="" />
                     {SMOKING_OPTIONS.map(opt => (
                       <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
@@ -621,7 +708,7 @@ export default function InformationScreen() {
             </Modal>
           </View>
 
-          <Text style={styles.text}>Interests:</Text>
+          <Text style={styles.text}>Interests</Text>
           <TextInput
             value={interests}
             onChangeText={setInterests}
@@ -639,21 +726,24 @@ export default function InformationScreen() {
               <ActivityIndicator size="small" color="#5A1D1D" />
             ) : (
               <>
-                <Text style={styles.textNextButton}>Next</Text>
-                <Ionicons name="arrow-forward" size={20} color="#5A1D1D" />
+                <Text style={styles.textNextButton}>{isEdit ? "Save" : "Next"}</Text>
+                <Ionicons name={isEdit ? "save-outline" : "arrow-forward"} size={20} color="#5A1D1D" />
               </>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleSkip}>
-            <Text style={styles.linkText}>
-              Skip<Ionicons name="play-skip-forward-outline" />
-            </Text>
-          </TouchableOpacity>
+          {!isEdit && (
+            <TouchableOpacity onPress={handleSkip}>
+              <Text style={styles.linkText}>
+                Skip<Ionicons name="play-skip-forward-outline" />
+              </Text>
+            </TouchableOpacity>
+          )}
 
         </View>
         
-      </KeyboardAwareScrollView>
+      </ScrollView>
+      </SafeAreaView>
     </ProtectedRoute>
   );
 }

@@ -9,7 +9,9 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  AppState,
+  PanResponder
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +19,12 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { 
+  requestNotificationPermissions, 
+  showMessageNotification,
+  clearBadgeCount,
+  addNotificationResponseListener
+} from '../../src/utils/notifications.js';
 
 export default function ChatRoomScreen() {
   const router = useRouter();
@@ -35,10 +43,103 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const lastMessageIdRef = useRef(null);
+  const appState = useRef(AppState.currentState);
+  const [isAppInForeground, setIsAppInForeground] = useState(true);
+  const notificationListener = useRef(null);
+  const responseListener = useRef(null);
+  const panResponder = useRef(null);
 
   useEffect(() => {
     loadCurrentUser();
     fetchEventData();
+    requestNotificationPermissions();
+    
+    // Clear badge count when entering chat room
+    clearBadgeCount();
+    
+    // Handle notification tap - navigate to specific message/room
+    responseListener.current = addNotificationResponseListener(response => {
+      const data = response.notification.request.content.data;
+      
+      if (data.type === 'chat_message' && data.roomId && data.eventId) {
+        // User tapped on chat notification
+        console.log('Notification tapped, opening chat room:', data.roomId);
+        
+        // If we're already in the right room, just scroll to bottom
+        if (data.roomId === roomId) {
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 300);
+        } else {
+          // Navigate to the chat room
+          router.push({
+            pathname: '/chat-room',
+            params: {
+              roomId: data.roomId,
+              eventId: data.eventId,
+              eventTitle: data.eventTitle,
+              from: 'notification'
+            }
+          });
+        }
+      } else if (data.type === 'event_update' && data.eventId) {
+        // Navigate to event details
+        router.push({
+          pathname: '/event-details',
+          params: {
+            id: data.eventId,
+            from: 'notification'
+          }
+        });
+      }
+      
+      // Clear badge after handling notification
+      clearBadgeCount();
+    });
+    
+    // Listen to app state changes (foreground/background)
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      const wasInBackground = appState.current.match(/inactive|background/);
+      const isNowActive = nextAppState === 'active';
+      
+      appState.current = nextAppState;
+      setIsAppInForeground(isNowActive);
+      
+      if (wasInBackground && isNowActive) {
+        // App came to foreground, refresh messages and clear badge
+        console.log('App came to foreground, refreshing messages');
+        clearBadgeCount();
+        if (roomId) fetchMessages();
+      }
+    });
+    
+    return () => {
+      subscription.remove();
+      if (responseListener.current) {
+        responseListener.current.remove();
+      }
+    };
+  }, []);
+
+  // Setup edge-swipe (left edge -> swipe right) to go to messages
+  useEffect(() => {
+    const EDGE_WIDTH = 28; // px from left edge to activate
+    panResponder.current = PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        const startX = evt.nativeEvent.pageX;
+        const { dx, dy } = gestureState;
+        // Start from left edge, mostly horizontal, moving right
+        return startX <= EDGE_WIDTH && dx > 10 && Math.abs(dy) < 10;
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        const { dx, vx } = gestureState;
+        if (dx > 80 && Math.abs(vx) > 0.2) {
+          // Go to messages screen
+          router.replace('/messages');
+        }
+      },
+      onPanResponderTerminationRequest: () => true,
+    });
   }, []);
 
   useEffect(() => {
@@ -65,6 +166,18 @@ export default function ChatRoomScreen() {
     } else {
       router.replace('/messages');
     }
+  };
+
+  // Utility function to remove duplicate messages by ID
+  const removeDuplicateMessages = (messageArray) => {
+    const seen = new Set();
+    return messageArray.filter(msg => {
+      if (!msg?.id || seen.has(msg.id)) {
+        return false;
+      }
+      seen.add(msg.id);
+      return true;
+    });
   };
 
   const loadCurrentUser = async () => {
@@ -152,13 +265,18 @@ export default function ChatRoomScreen() {
       console.log('Received messages:', newMessages.length);
       
       if (pageNum === 1) {
-        setMessages(newMessages.reverse());
+        // Remove duplicates and set messages
+        const uniqueMessages = removeDuplicateMessages(newMessages.reverse());
+        setMessages(uniqueMessages);
         // Track the latest message ID for polling
-        if (newMessages.length > 0) {
-          lastMessageIdRef.current = newMessages[newMessages.length - 1].id;
+        if (uniqueMessages.length > 0) {
+          lastMessageIdRef.current = uniqueMessages[uniqueMessages.length - 1].id;
         }
       } else {
-        setMessages([...newMessages.reverse(), ...messages]);
+        // Merge and remove duplicates
+        const mergedMessages = [...newMessages.reverse(), ...messages];
+        const uniqueMessages = removeDuplicateMessages(mergedMessages);
+        setMessages(uniqueMessages);
       }
       
       setHasMore(newMessages.length === 50);
@@ -213,7 +331,26 @@ export default function ChatRoomScreen() {
           
           if (newMessages.length > 0) {
             console.log('Found', newMessages.length, 'new messages');
-            setMessages(prevMessages => [...prevMessages, ...newMessages.reverse()]);
+            
+            // Use functional update to ensure we're working with latest state
+            setMessages(prevMessages => {
+              // Double-check for duplicates before adding
+              const uniqueNewMessages = newMessages.filter(newMsg => 
+                !prevMessages.some(existing => existing.id === newMsg.id)
+              );
+              
+              if (uniqueNewMessages.length === 0) return prevMessages;
+              
+              // Show notifications for messages from other users
+              uniqueNewMessages.forEach(msg => {
+                // Only notify if message is not from current user and app is in background
+                if (msg.sender_id !== currentUserId && !isAppInForeground) {
+                  showMessageNotification(msg, eventTitle, eventId, roomId);
+                }
+              });
+              
+              return [...prevMessages, ...uniqueNewMessages.reverse()];
+            });
             
             // Auto-scroll to bottom if user is near the bottom
             setTimeout(() => {
@@ -248,9 +385,15 @@ export default function ChatRoomScreen() {
         message_type: 'text',
       });
 
-      // Add new message to list
+      // Add new message to list, checking for duplicates
       const newMessage = response.data;
-      setMessages(prevMessages => [...prevMessages, newMessage]);
+      setMessages(prevMessages => {
+        // Check if message already exists (shouldn't happen, but safety check)
+        const exists = prevMessages.some(msg => msg.id === newMessage.id);
+        if (exists) return prevMessages;
+        
+        return [...prevMessages, newMessage];
+      });
       
       // Update last message ID reference
       lastMessageIdRef.current = newMessage.id;
@@ -374,7 +517,8 @@ export default function ChatRoomScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={{ flex: 1 }} {...(panResponder.current ? panResponder.current.panHandlers : {})}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -483,7 +627,7 @@ export default function ChatRoomScreen() {
             ref={flatListRef}
             data={messages}
             renderItem={renderMessage}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item?.id?.toString() || `message-${index}`}
             contentContainerStyle={[
               styles.messagesList,
               messages.length === 0 && styles.emptyList
@@ -532,6 +676,7 @@ export default function ChatRoomScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </View>
   );
 }
 

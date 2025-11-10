@@ -18,6 +18,7 @@ import { styles } from '../../assets/styles/auth-styles.js';
 import { COLORS } from '../../color/colors.js';
 import { getGoogleAuthUrl, login } from '../../src/api/auth.service.js';
 import { Notification } from '../../src/utils/Notification.jsx';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 // Constants
 const STORAGE_KEYS = {
@@ -34,6 +35,7 @@ const getRedirectUrl = () => {
 export default function LoginScreen() {
   const router = useRouter();
   const passwordRef = useRef(null);
+  const { login: ctxLogin } = useAuth(); // ใช้ login จาก AuthContext
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,31 +77,58 @@ export default function LoginScreen() {
     try {
       setLoading(true);
       
+      if (__DEV__) console.log('[Login] Attempting login with:', email);
       const response = await login(email, password);
       
       if (__DEV__) {
-        console.log('Login successful:', response);
+        console.log('[Login] API response:', {
+          hasToken: !!response.token,
+          hasUser: !!response.user,
+          responseKeys: Object.keys(response)
+        });
       }
       
-      // Store auth data
-      await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token),
-        AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user))
-      ]);
+      if (!response.token) {
+        throw new Error('No token in response');
+      }
       
-      // ใช้ replace และรอให้เสร็จสมบูรณ์
-      setTimeout(() => {
-        router.replace('/welcome');
-      }, 100);
+      if (!response.user) {
+        throw new Error('No user data in response');
+      }
+      
+      // ใช้ AuthContext login แทนการบันทึกเอง
+      if (__DEV__) console.log('[Login] Calling AuthContext login...');
+      await ctxLogin(response.user, response.token);
+      
+      if (__DEV__) console.log('[Login] Login successful');
+      // AuthContext จะ navigate ไปหน้า welcome เอง
       
     } catch (err) {
-      console.error('Login error:', err);
+      if (__DEV__) {
+        console.error('[Login] Login error:', err);
+        console.error('[Login] Error response:', err?.response?.data);
+      }
       
       // User-friendly error messages
-      const errorMessage = err.response?.data?.message 
-        || err.response?.data?.error 
-        || err.userMessage 
-        || 'Login failed. Please check your credentials and try again.';
+      let errorMessage;
+      
+      if (err.userMessage) {
+        errorMessage = err.userMessage;
+      } else if (err.response?.status === 401) {
+        // prefer backend message if provided
+        errorMessage = err.response?.data?.message || 'Invalid email or password. Please try again.';
+      } else if (err.response?.status === 404) {
+        errorMessage = 'Account not found. Please sign up first.';
+      } else if (err.response?.status >= 500) {
+        errorMessage = 'Server error. Please try again later.';
+      } else if (err.message === 'Network Error') {
+        errorMessage = 'Network error. Please check your connection.';
+      } else {
+        errorMessage = err.response?.data?.message 
+          || err.response?.data?.error 
+          || err.message 
+          || 'Login failed. Please try again.';
+      }
       
       setError(errorMessage);
     } finally {
@@ -112,20 +141,19 @@ export default function LoginScreen() {
       setGoogleLoading(true);
       setError('');
       
-      if (__DEV__) {
-        console.log('Initiating Google OAuth...');
-      }
+      if (__DEV__) console.log('[Login] Initiating Google OAuth...');
       
       const response = await getGoogleAuthUrl();
       const redirectUrl = getRedirectUrl();
-      
-      // Create redirect URL for web browser
-      const googleRedirectUrl = `${window.location.origin}/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`;
-      
-      if (__DEV__) {
-        console.log('Opening Google OAuth...');
-      }
-      
+      const isWeb = Platform.OS === 'web';
+      // For web, we bounce through our /google-redirect page to keep same origin.
+      // For native, open the provider URL directly.
+      const googleRedirectUrl = isWeb
+        ? `${window.location.origin}/google-redirect?auth_url=${encodeURIComponent(response.auth_url)}`
+        : response.auth_url;
+
+      if (__DEV__) console.log('[Login] Opening Google OAuth session...');
+
       const result = await WebBrowser.openAuthSessionAsync(
         googleRedirectUrl,
         redirectUrl
@@ -140,9 +168,7 @@ export default function LoginScreen() {
         const provider = url.searchParams.get('provider');
         
         if (token) {
-          // Store token and user data
-          await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-          
+          // ใช้ AuthContext login แทนการบันทึกเอง
           const userData = {
             id: user_id,
             email: userEmail,
@@ -150,26 +176,21 @@ export default function LoginScreen() {
             provider: provider
           };
           
-          await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+          await ctxLogin(userData, token);
+          if (__DEV__) console.log('[Login] Google OAuth successful');
           
-          if (__DEV__) {
-            console.log('Google OAuth successful');
-          }
-          
-          router.replace('/welcome');
+          // AuthContext จะ navigate ไปหน้า welcome เอง
         } else {
           setError('Authentication failed. No token received.');
         }
       } else if (result.type === 'cancel') {
-        if (__DEV__) {
-          console.log('User cancelled Google authentication');
-        }
+        if (__DEV__) console.log('[Login] User cancelled Google authentication');
       } else {
         setError('Google authentication failed. Please try again.');
       }
       
     } catch (err) {
-      console.error('Google auth error:', err);
+      if (__DEV__) console.error('[Login] Google auth error:', err);
       setError('Failed to connect with Google. Please try again.');
     } finally {
       setGoogleLoading(false);

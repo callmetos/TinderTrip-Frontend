@@ -414,7 +414,7 @@ export default function EventDetailsScreen() {
             return (
               <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
                 <Ionicons name="chatbubble" size={22} color="#fff" />
-                <Text style={styles.chatButtonText}>Open Chat</Text>
+                <Text style={styles.chatButtonText}>Chat</Text>
               </TouchableOpacity>
             );
           }
@@ -424,7 +424,7 @@ export default function EventDetailsScreen() {
             return (
               <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
                 <Ionicons name="chatbubble" size={22} color="#fff" />
-                <Text style={styles.chatButtonText}>Open Chat</Text>
+                <Text style={styles.chatButtonText}>Chat</Text>
               </TouchableOpacity>
             );
           }

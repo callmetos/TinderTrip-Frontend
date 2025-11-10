@@ -1,16 +1,101 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, StyleSheet, Alert, StatusBar, Image, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '@/color/colors';
 import { useAuth } from '../../src/contexts/AuthContext.js';
+import { getUserStats } from '../../src/api/user.service.js';
+import { getUserProfile } from '../../src/api/info.service.js';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [localUser, setLocalUser] = useState(null);
+  const [stats, setStats] = useState({
+    events_joined: 0,
+    events_liked: 0,
+    events_created: 0,
+  });
+
+  useEffect(() => {
+    // Only fetch when authenticated to avoid 401 spam during startup
+    if (isAuthenticated) {
+      fetchUserStats();
+      loadLocalUser();
+    }
+  }, [isAuthenticated]);
+
+  // Update local user when context user changes
+  useEffect(() => {
+    if (user) {
+      setLocalUser(user);
+    }
+  }, [user]);
+
+  // Refresh stats when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (isAuthenticated) {
+        fetchUserStats();
+        loadLocalUser();
+      }
+    }, [isAuthenticated])
+  );
+
+  const loadLocalUser = async () => {
+    try {
+      const raw = await AsyncStorage.getItem('USER_DATA');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        setLocalUser(parsed);
+      }
+    } catch (error) {
+      console.error('Failed to load local user:', error);
+    }
+  };
+
+  const fetchUserStats = async () => {
+    try {
+      const data = await getUserStats();
+      setStats(data);
+    } catch (error) {
+      console.error('Failed to fetch user stats:', error);
+      // Keep showing zeros if fetch fails
+    }
+  };
+
+  const fetchAndSyncUserProfile = async () => {
+    try {
+      const fresh = await getUserProfile();
+      console.log('[Profile] Fetched user profile:', fresh);
+      
+      if (fresh && fresh.data) {
+        // API returns { data: { user object }, success: true, ... }
+        const userData = fresh.data;
+        
+        // Merge with existing USER_DATA to preserve email and other fields
+        const existingData = await AsyncStorage.getItem('USER_DATA');
+        const existing = existingData ? JSON.parse(existingData) : {};
+        
+        const mergedUser = {
+          ...existing,
+          ...userData,
+          // Ensure email is preserved from existing if not in fresh data
+          email: userData.email || existing.email,
+        };
+        
+        await AsyncStorage.setItem('USER_DATA', JSON.stringify(mergedUser));
+        setLocalUser(mergedUser);
+      }
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -33,7 +118,7 @@ export default function ProfileScreen() {
   };
 
   const handleEditProfile = () => {
-    Alert.alert('Coming Soon', 'Profile editing feature is coming soon!');
+    router.push('/information?mode=edit');
   };
 
   const menuItems = [
@@ -53,7 +138,7 @@ export default function ProfileScreen() {
       icon: 'notifications-outline',
       title: 'Notifications',
       subtitle: 'Manage notification settings',
-      onPress: () => Alert.alert('Coming Soon', 'Notification settings coming soon!'),
+      onPress: () => router.push('/notification-settings'),
     },
     {
       icon: 'help-circle-outline',
@@ -69,12 +154,35 @@ export default function ProfileScreen() {
     },
   ];
 
-  const displayName = user?.display_name || user?.email?.split('@')[0] || 'Guest';
-  const email = user?.email || '';
+  const displayName = localUser?.display_name || localUser?.email?.split('@')[0] || user?.display_name || user?.email?.split('@')[0] || 'Guest';
+  const email = localUser?.email || user?.email || '';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ScrollView>
+    <View style={styles.wrapper}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <SafeAreaView style={styles.container} edges={[]}>
+        <ScrollView
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                try {
+                  setRefreshing(true);
+                  if (isAuthenticated) {
+                    await Promise.all([
+                      fetchAndSyncUserProfile(),
+                      fetchUserStats(),
+                    ]);
+                  }
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+              colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
+            />
+          }
+        >
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.avatarContainer}>
@@ -97,17 +205,17 @@ export default function ProfileScreen() {
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.stat}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.events_joined}</Text>
             <Text style={styles.statLabel}>Events Joined</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.events_liked}</Text>
             <Text style={styles.statLabel}>Events Liked</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{stats.events_created}</Text>
             <Text style={styles.statLabel}>Events Created</Text>
           </View>
         </View>
@@ -146,10 +254,15 @@ export default function ProfileScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

@@ -3,24 +3,72 @@ import { api, setAuthToken } from '../../src/api/client.js';
 
 
 export async function login(email, password) {
-  const res = await api.post('/api/v1/auth/login', { email, password });
-  const response = res.data;
-  
-  // ต้องมี token ถึงจะถือว่าสำเร็จ มุกกี้เพิ่ม
-  if (!response?.token) {
-    const message = response?.message || response?.error || 'Login failed: token missing';
-    const err = new Error(message);
-    // แนบ response เพื่อให้ UI แสดงข้อความผิดพลาดได้
-    err.response = { data: response };
-    throw err;
+  try {
+    if (__DEV__) console.log('[auth.service] Logging in:', email);
+    const res = await api.post('/api/v1/auth/login', { email, password });
+    
+    if (__DEV__) {
+      console.log('[auth.service] Raw response:', {
+        status: res.status,
+        hasData: !!res.data,
+        dataKeys: res.data ? Object.keys(res.data) : [],
+      });
+    }
+    
+    const response = res.data;
+    
+    // Backend อาจส่ง token มาใน response.data แทน response.token
+    const token = response?.token || response?.data?.token;
+    const user = response?.user || response?.data?.user || response?.data;
+    
+    if (__DEV__) {
+      console.log('[auth.service] Processed:', {
+        hasToken: !!token,
+        hasUser: !!user,
+        tokenPreview: token ? token.substring(0, 20) + '...' : 'null',
+      });
+    }
+    
+    // ต้องมี token ถึงจะถือว่าสำเร็จ
+    if (!token) {
+      const message = response?.message || response?.error || 'Login failed: token missing';
+      if (__DEV__) console.error('[auth.service] No token in response:', response);
+      const err = new Error(message);
+      err.response = { data: response };
+      err.userMessage = message;
+      throw err;
+    }
+
+    // เก็บ token ลง AsyncStorage
+    setAuthToken(token);
+    await AsyncStorage.setItem('TOKEN', token);
+    
+    // Return normalized response
+    return {
+      token,
+      user: user || { email }, // fallback to email if no user object
+      ...response
+    };
+  } catch (error) {
+    if (__DEV__) {
+      console.error('[auth.service] Login error:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    }
+    
+    // Attach user-friendly message
+    if (error.response?.status === 401) {
+      error.userMessage = 'Invalid email or password';
+    } else if (error.response?.status === 404) {
+      error.userMessage = 'Account not found';
+    } else if (!error.userMessage) {
+      error.userMessage = error.response?.data?.message || error.message;
+    }
+    
+    throw error;
   }
-
-  // เก็บ token ลง AsyncStorage
-  setAuthToken(response.token);
-  await AsyncStorage.setItem('TOKEN', response.token);
-  
-  return response;
-
 }
 
 

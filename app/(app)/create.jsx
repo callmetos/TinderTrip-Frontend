@@ -330,7 +330,7 @@ export default function CreateEventScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={[]}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Create Event</Text>
         <Text style={styles.headerSubtitle}>Organize your next trip</Text>

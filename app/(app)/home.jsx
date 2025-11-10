@@ -110,6 +110,19 @@ export default function Home() {
 
       setError(null);
 
+      // Fetch joined events to filter them out
+      let joinedEventIds = [];
+      try {
+        const joinedRes = await api.get('/api/v1/events/joined', {
+          params: { page: 1, limit: 1000 },
+        });
+        const joinedEvents = joinedRes?.data?.data || [];
+        joinedEventIds = joinedEvents.map(e => e.id);
+        console.log('📌 Joined event IDs:', joinedEventIds.length);
+      } catch (err) {
+        console.warn('Failed to fetch joined events for filtering:', err);
+      }
+
       const res = await api.get('/api/v1/events', {
         params: { page, limit: PAGE_LIMIT, status: 'published' },
       });
@@ -118,11 +131,15 @@ export default function Home() {
       const meta = res?.data?.meta;
 
       console.log('📦 Raw events data:', data.length, 'events');
-      console.log('🖼️ Events with cover_image_url:', data.filter(e => e.cover_image_url).length);
+      
+      // Filter out already joined events
+      const filteredData = data.filter(event => !joinedEventIds.includes(event.id));
+      console.log('🔍 After filtering joined events:', filteredData.length, 'events');
+      console.log('🖼️ Events with cover_image_url:', filteredData.filter(e => e.cover_image_url).length);
 
       // Fetch photos for each event
       const eventsWithPhotos = await Promise.all(
-        data.map(async (event) => {
+        filteredData.map(async (event) => {
           console.log(`Event ${event.title}: original cover_image_url =`, event.cover_image_url);
           try {
             const photosRes = await api.get(`/api/v1/events/${event.id}/photos`);
