@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     Image,
     Text,
@@ -15,11 +15,15 @@ import { resendVerification, verifyEmail } from "../../src/api/auth.service.js";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
 import { clearPassword, clearVerifyRegister, loadDisplayName, loadEmail, loadPassword, loadVerifyRegister, saveOTP, saveToken } from "../../src/lib/storage.js";
 import { Notification } from "../../src/utils/Notification.jsx";
+import { useAuth } from "../../src/contexts/AuthContext";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setAuthToken } from "../../src/api/client";
 
 
 export default function Verification() {
   const [email, setEmail] = useState("");
   const router = useRouter("");
+  const { login: ctxLogin } = useAuth();
 
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +35,12 @@ export default function Verification() {
   const [isResending, setIsResending] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [isVerifyRegister, setIsVerifyRegister] = useState(false);
-  const [otp, setOTP] = useState("")
+  const [otp, setOTP] = useState("");
+  
+  // OTP input states
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const inputRefs = useRef([]);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // โหลด email, display_name, password และ verify_register จาก AsyncStorage เมื่อ component mount
   useEffect(() => {
@@ -83,41 +92,83 @@ export default function Verification() {
     return () => clearInterval(interval);
   }, [resendCooldown]);
 
-  const onVerifyPress = async () => {
-    if (!code.trim()) {
-      setError("Please enter verification code");
+  // Handle OTP input change
+  const handleOtpChange = (text, index) => {
+    // Only allow numbers
+    if (text && !/^\d+$/.test(text)) return;
+
+    const newOtpDigits = [...otpDigits];
+    newOtpDigits[index] = text;
+    setOtpDigits(newOtpDigits);
+
+    // Auto-focus next input
+    if (text && index < 5) {
+      inputRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-verify when all 6 digits are filled
+    const fullOtp = newOtpDigits.join('');
+    if (fullOtp.length === 6 && !isVerifying) {
+      setCode(fullOtp);
+      // Auto verify
+      setTimeout(() => {
+        onVerifyPress(fullOtp);
+      }, 100);
+    }
+  };
+
+  // Handle backspace
+  const handleKeyPress = (e, index) => {
+    if (e.nativeEvent.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const onVerifyPress = async (otpCode = null) => {
+    const verificationCode = otpCode || otpDigits.join('');
+    
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError("Please enter 6-digit verification code");
       return;
     }
 
+    if (isVerifying) return;
+
     try {
+      setIsVerifying(true);
       setError("");
       setSuccess("");
       
-      console.log("Verifying email with:", { email, code, password, displayName, isVerifyRegister });
+      console.log("Verifying email with:", { email, code: verificationCode, password, displayName, isVerifyRegister });
       
       if (isVerifyRegister) {
         console.log("Using verify-ema_il API for registration verification");
         
         if (!password.trim()) {
           setError("Please enter password");
+          setIsVerifying(false);
           return;
         }
         
-        const response = await verifyEmail(email, code, password, displayName);
+        const response = await verifyEmail(email, verificationCode, password, displayName);
         console.log("Verify email response:", response);
         
-        await saveToken(response.token);
+        // Save token and user data manually to prevent auto-navigation from AuthContext
+        await AsyncStorage.setItem('TOKEN', response.token);
+        await AsyncStorage.setItem('USER_DATA', JSON.stringify(response.user));
+        setAuthToken(response.token); // Set token in API client
+        
         await clearVerifyRegister();
         await clearPassword();
         
-        setSuccess("Email verified successfully!");
+        setSuccess("Email verified successfully! Redirecting...");
         setTimeout(() => {
-          router.replace("/");
-        }, 2000);
+          router.replace("/information");
+        }, 1500);
         
       } else {
 
-        await saveOTP(code);
+        await saveOTP(verificationCode);
 
         router.replace("/reset-password")
 
@@ -129,6 +180,11 @@ export default function Verification() {
     } catch (err) {
       console.error("Verify email error:", err);
       setError(err.response?.data?.message || err.message || "Verification failed. Please try again.");
+      // Clear OTP on error
+      setOtpDigits(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -139,6 +195,10 @@ export default function Verification() {
       setIsResending(true);
       setError("");
       setSuccess("");
+      
+      // Clear OTP inputs
+      setOtpDigits(['', '', '', '', '', '']);
+      inputRefs.current[0]?.focus();
       
       console.log("Resending OTP to:", email);
       
@@ -197,18 +257,50 @@ export default function Verification() {
               Verification code sent to {email || "your email"}
             </Text>
 
-            <TextInput
-              style={styles.verificationInput}
-              placeholder="Verification Code"
-              value={code}
-              onChangeText={setCode}
-              keyboardType="number-pad"
-              autoCapitalize="none"
-            />
+            {/* OTP Input Boxes */}
+            <View style={{
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 10,
+              marginVertical: 30,
+            }}>
+              {otpDigits.map((digit, index) => (
+                <TextInput
+                  key={index}
+                  ref={(ref) => inputRefs.current[index] = ref}
+                  style={{
+                    width: 50,
+                    height: 60,
+                    borderWidth: 2,
+                    borderColor: digit ? COLORS.redwine : '#E0E0E0',
+                    borderRadius: 12,
+                    textAlign: 'center',
+                    fontSize: 24,
+                    fontWeight: 'bold',
+                    color: COLORS.textDark,
+                    backgroundColor: '#fff',
+                  }}
+                  value={digit}
+                  onChangeText={(text) => handleOtpChange(text, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  selectTextOnFocus
+                  editable={!isVerifying}
+                />
+              ))}
+            </View>
 
-            <TouchableOpacity style={styles.resetButton} onPress={onVerifyPress}>
-              <Text style={styles.resetButtonText}>Verify</Text>
-            </TouchableOpacity>
+            {isVerifying && (
+              <Text style={{ 
+                textAlign: 'center', 
+                color: COLORS.redwine,
+                marginBottom: 20,
+                fontSize: 15,
+              }}>
+                Verifying...
+              </Text>
+            )}
 
             <View style={{ marginTop: 20, alignItems: 'center' }}>
               <TouchableOpacity 

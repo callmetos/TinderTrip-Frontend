@@ -30,19 +30,26 @@ export const styles = StyleSheet.create({
   },
 
   avatar: {
-    height: 69, 
-    width: 69, 
-    borderRadius: 32, 
-    borderColor: COLORS.textLight,
+    height: 75, 
+    width: 75, 
+    borderRadius: 37.5, 
+    borderWidth: 3,
+    borderColor: COLORS.white,
   },
   editButton:{
-    borderRadius: 24,
-    borderColor:COLORS.white,
-    padding: 8,
+    backgroundColor: COLORS.primary,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: COLORS.white,
+    padding: 6,
     position: "absolute",
-    right: -4,
-    bottom: -9,
-
+    right: -2,
+    bottom: -2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
 
   welcomeContainer: {
@@ -50,23 +57,47 @@ export const styles = StyleSheet.create({
     paddingLeft:20
   },
   welcomeText: {
-    fontSize: 20,
+    fontSize: 22,
     color: COLORS.white,
-    marginBottom: 2,
+    marginBottom: 4,
     fontWeight: "700",
   },
   usernameText: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "500",
     color: COLORS.white,
-    opacity: 0.5,
+    opacity: 0.85,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "bold",
-    color: COLORS.shadow,
-    marginVertical: 15,
+    color: COLORS.text,
+    marginTop: 10,
+    marginBottom: 8,
     textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 15,
+    color: COLORS.textLight,
+    textAlign: "center",
+    marginBottom: 24,
+    paddingHorizontal: 40,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginLeft: 40,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  required: {
+    color: '#e74c3c',
+    fontSize: 16,
   },
    text: {
     marginLeft: 40,
@@ -80,7 +111,8 @@ export const styles = StyleSheet.create({
   textInput: {
     backgroundColor: COLORS.white,
     borderRadius: 25,
-    padding: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     marginBottom: 5,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -88,10 +120,29 @@ export const styles = StyleSheet.create({
     color: COLORS.text,
     marginHorizontal: 40,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    paddingLeft: 20,
+    elevation: 3,
+  },
+  bioInput: {
+    minHeight: 80,
+    paddingTop: 14,
+  },
+  ageDisplay: {
+    backgroundColor: COLORS.white,
+    borderRadius: 25,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginBottom: 5,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginHorizontal: 40,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   selected: {
@@ -100,16 +151,18 @@ export const styles = StyleSheet.create({
     marginBottom: 5,
     marginHorizontal: 40,
     borderRadius: 25,
-    padding: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: COLORS.border,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 4,
-    paddingLeft: 20,
+    elevation: 3,
   },
   dateInput: {
     flexDirection: 'row',
@@ -168,10 +221,10 @@ export const styles = StyleSheet.create({
   },
 
   genderSelected: {
-    width: 170
+    width: '100%',
   },
   AgeSelected: {
-    width: 117,
+    width: '100%',
   },
   
   fillBack: {
@@ -200,53 +253,50 @@ export const styles = StyleSheet.create({
    right: 1
   },
   twoColRow: {
-  flexDirection: 'row',
-  alignItems: 'flex-start',
-  flexWrap: 'nowrap',        // กันไม่ให้ตัดบรรทัด
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 16,
+    marginBottom: 0,
   },
   col: {
-    flex: 1,                   // แบ่งพื้นที่เท่ากัน
+    flex: 1,
     minWidth: 0,
-    marginRight: -50,
-    
   },
 
   nextButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "flex-end",
-    backgroundColor: "#F8F5F2",   // soft beige like your screenshot
-    borderColor: "#5A1D1D",      // dark red border
-    borderWidth: 1,
+    alignSelf: "center",
+    backgroundColor: COLORS.primary,
     borderRadius: 30,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    marginTop: 24,
-    marginRight: 30,
-    marginBottom: 30,
+    paddingVertical: 14,
+    paddingHorizontal: 40,
+    marginTop: 32,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+    minWidth: 200,
   },
 
   textNextButton: {
-    color: "#5A1D1D",
-    fontWeight: "600",
-    fontSize: 16,
+    color: COLORS.white,
+    fontWeight: "700",
+    fontSize: 17,
     marginRight: 8,
   },
 
   linkText: {
     color: COLORS.primary,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "600",
     textDecorationLine: "underline",
-    textAlign: "right",
-    alignSelf: "flex-end",
-    marginRight: 30,
-    marginTop: -10,
-    marginBottom: 10,
+    textAlign: "center",
+    alignSelf: "center",
+    marginTop: 8,
+    marginBottom: 20,
   },
 });

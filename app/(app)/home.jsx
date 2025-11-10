@@ -140,11 +140,11 @@ export default function Home() {
       // Fetch photos for each event
       const eventsWithPhotos = await Promise.all(
         filteredData.map(async (event) => {
-          console.log(`Event ${event.title}: original cover_image_url =`, event.cover_image_url);
+          // console.log(`Event ${event.title}: original cover_image_url =`, event.cover_image_url);
           try {
             const photosRes = await api.get(`/api/v1/events/${event.id}/photos`);
             const photos = photosRes?.data?.data || photosRes?.data || [];
-            console.log(`📸 Event ${event.id}: ${photos.length} photos`, photos.length > 0 ? photos[0].url : 'no photos');
+            // console.log(`📸 Event ${event.id}: ${photos.length} photos`, photos.length > 0 ? photos[0].url : 'no photos');
             return {
               ...event,
               photos: photos,
@@ -155,7 +155,7 @@ export default function Home() {
             if (err?.response?.status !== 404) {
               console.error(`Failed to fetch photos for event ${event.id}`, err);
             } else {
-              console.log(`⚠️ Event ${event.id}: No photos endpoint (404), using original:`, event.cover_image_url);
+              // console.log(`⚠️ Event ${event.id}: No photos endpoint (404), using original:`, event.cover_image_url);
             }
             return event;
           }

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { Picker } from '@react-native-picker/picker';
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, useNavigation } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import { ActivityIndicator, Alert, Image, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -104,9 +104,17 @@ const WebDateInput = ({ value, onChange }) => {
 export default function InformationScreen() {
   const [user, setUser] = useState(null);
   const router = useRouter();
+  const navigation = useNavigation();
   const { mode, from } = useLocalSearchParams();
   const isEdit = String(mode || "").toLowerCase() === "edit";
   const scrollRef = useRef(null);
+
+  // Hide tab bar when in setup mode (not edit mode)
+  useEffect(() => {
+    navigation.setOptions({
+      tabBarStyle: isEdit ? undefined : { display: 'none' },
+    });
+  }, [navigation, isEdit]);
 
   const [name, setName] = useState("");
   const [bio, setBio] = useState("");
@@ -202,12 +210,23 @@ export default function InformationScreen() {
     loadUserData();
   }, []);
 
+  // Check if required fields are filled
+  const isFormValid = () => {
+    return name?.trim() && date && age >= 13;
+  };
+
   const handleNext = async () => {
     if (isSubmitting) return;
 
     // Validation
     if (!name?.trim()) {
       setSubmitError("Please enter your name");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      return;
+    }
+
+    if (!date) {
+      setSubmitError("Please select your date of birth");
       scrollRef.current?.scrollTo({ y: 0, animated: true });
       return;
     }
@@ -442,16 +461,16 @@ export default function InformationScreen() {
             {/* Header */}
             <View style={{
               backgroundColor: COLORS.primary,
-              paddingVertical: 20,
+              paddingVertical: 24,
               paddingHorizontal: 20,
               borderBottomLeftRadius: 30,
               borderBottomRightRadius: 30,
-              marginBottom: 20,
+              marginBottom: 30,
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.1,
-              shadowRadius: 8,
-              elevation: 5,
+              shadowOpacity: 0.15,
+              shadowRadius: 12,
+              elevation: 8,
             }}>
               <View style={styles.headerLeft}>
                 <TouchableOpacity onPress={handleAvatarPress} activeOpacity={0.8}>
@@ -461,51 +480,67 @@ export default function InformationScreen() {
                     onPress={handleCameraPress}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="camera-outline" size={20} color={COLORS.white}/>
+                    <Ionicons name="camera" size={18} color={COLORS.white}/>
                   </TouchableOpacity>
                 </TouchableOpacity>
 
                 <View style={styles.welcomeContainer}>
                   <Text style={styles.welcomeText}>
-                    Hello, {user?.display_name || 'User'}
+                    {user?.display_name || 'Welcome!'}
                   </Text>
                   <Text style={styles.usernameText}>
-                    {user?.email?.split("@")[0] || 'user@example.com'}
+                    {user?.email || 'Complete your profile'}
                   </Text>
                 </View>
               </View>
             </View>
 
-          <Text style={styles.title}>{isEdit ? "Edit Profile" : "Information"}</Text>
+          <Text style={styles.title}>{isEdit ? "Edit Profile" : "Complete Your Profile"}</Text>
+          <Text style={styles.subtitle}>Tell us more about yourself</Text>
 
-          <Text style={styles.text}>Name <Text style={{ color: '#e74c3c' }}>*</Text></Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            autoCapitalize="words"
-            placeholder="John Smith"
-            style={styles.textInput}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="person-outline" size={16} color={COLORS.primary} /> Name <Text style={styles.required}>*</Text>
+            </Text>
+            <TextInput
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              placeholder="Enter your full name"
+              placeholderTextColor="#999"
+              style={styles.textInput}
+            />
+          </View>
 
-          <Text style={styles.text}>Bio</Text>
-          <TextInput
-            value={bio}
-            onChangeText={setBio}
-            autoCapitalize="none"
-            placeholder="I love cat"
-            style={styles.textInput}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="chatbox-outline" size={16} color={COLORS.primary} /> Bio
+            </Text>
+            <TextInput
+              value={bio}
+              onChangeText={setBio}
+              autoCapitalize="sentences"
+              placeholder="Tell us something about yourself..."
+              placeholderTextColor="#999"
+              style={[styles.textInput, styles.bioInput]}
+              multiline
+              numberOfLines={3}
+              textAlignVertical="top"
+            />
+          </View>
 
-          <Text style={styles.text}>Languages</Text>
-          <View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="language-outline" size={16} color={COLORS.primary} /> Languages
+            </Text>
             <TouchableOpacity onPress={() => setShowLanguagePicker(true)} style={styles.selected}>
               <Text style={{ color: selectedLanguage ? COLORS.text : "#999", fontSize: 16 }}>
-                {selectedLanguage || "Select your language"}
+                {selectedLanguage || "Select languages you speak"}
               </Text>
               <Ionicons
-                name={showLanguagePicker ? "caret-up-outline" : "caret-down-outline"}
+                name={showLanguagePicker ? "chevron-up" : "chevron-down"}
                 size={20}
-                color="#666"
+                color={COLORS.primary}
               />
             </TouchableOpacity>
             <Modal visible={showLanguagePicker} transparent animationType="slide">
@@ -537,22 +572,26 @@ export default function InformationScreen() {
             </Modal>
           </View>
 
-          <Text style={styles.text}>Date of Birth: <Text style={{ color: '#e74c3c' }}>*</Text></Text>
-          {Platform.OS === "web" ? (
-            // เว็บ: ใช้ input type="date"
-            <View style={styles.selected}>
-              <WebDateInput
-                value={date}
-                onChange={(d) => setDate(d)}
-              />
-            </View>
-          ) : (
-          <TouchableOpacity style={styles.selected} onPress={handleDatePress}>
-            <Text style={{ color: date ? COLORS.text : '#999', fontSize: 16 }}>
-              {date ? date.toDateString() : "Select your birthday"}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="calendar-outline" size={16} color={COLORS.primary} /> Date of Birth <Text style={styles.required}>*</Text>
             </Text>
-            <Ionicons name='calendar-outline' size={20} color='#999' />
-          </TouchableOpacity> )}
+            {Platform.OS === "web" ? (
+              <View style={styles.selected}>
+                <WebDateInput
+                  value={date}
+                  onChange={(d) => setDate(d)}
+                />
+              </View>
+            ) : (
+              <TouchableOpacity style={styles.selected} onPress={handleDatePress}>
+                <Text style={{ color: date ? COLORS.text : '#999', fontSize: 16 }}>
+                  {date ? date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : "Select your birthday"}
+                </Text>
+                <Ionicons name='calendar' size={20} color={COLORS.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
 
           {Platform.OS === "ios" && (
             <Modal visible={showIOSDatePicker} transparent animationType="slide">
@@ -589,20 +628,22 @@ export default function InformationScreen() {
 
           <View style={styles.twoColRow}>
             {/* LEFT: Gender */}
-            <View style={styles.col}>
-              <Text style={styles.text}>Gender</Text>
+            <View style={[styles.col, styles.inputGroup]}>
+              <Text style={styles.label}>
+                <Ionicons name="male-female-outline" size={16} color={COLORS.primary} /> Gender
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowGenderPicker(true)}
                 style={[styles.selected, styles.genderSelected]}
                 activeOpacity={0.8}
               >
-                <Text style={{ color: gender ? COLORS.text : "#999", fontSize: 16 }}>
-                  {gender ? genderLabel(gender) : "Select gender"}
+                <Text style={{ color: gender ? COLORS.text : "#999", fontSize: 15 }}>
+                  {gender ? genderLabel(gender) : "Select"}
                 </Text>
                 <Ionicons
-                  name={showGenderPicker ? "caret-up-outline" : "caret-down-outline"}
-                  size={20}
-                  color="#666"
+                  name={showGenderPicker ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color={COLORS.primary}
                 />
               </TouchableOpacity>
 
@@ -631,28 +672,30 @@ export default function InformationScreen() {
             </View>
 
             {/* RIGHT: Age */}
-            <View style={[styles.col]}>
-              <Text style={styles.text}>Age</Text>
-              <TextInput
-                value={Number.isInteger(age) ? String(age) : ""}  // ✅ แปลงเป็น string ตอนโชว์
-                editable={false}
-                selectTextOnFocus={false}
-                placeholder="age"
-                style={[styles.textInput, styles.AgeSelected]}
-              />
+            <View style={[styles.col, styles.inputGroup]}>
+              <Text style={styles.label}>
+                <Ionicons name="time-outline" size={16} color={COLORS.primary} /> Age
+              </Text>
+              <View style={[styles.ageDisplay]}>
+                <Text style={{ color: age ? COLORS.text : "#999", fontSize: 16, fontWeight: '600' }}>
+                  {Number.isInteger(age) ? `${age} years` : ""}
+                </Text>
+              </View>
             </View>
           </View>
 
-          <Text style={styles.text}>Job Title:</Text>
-          <View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="briefcase-outline" size={16} color={COLORS.primary} /> Job Title
+            </Text>
             <TouchableOpacity onPress={() => setShowJobTitlePicker(true)} style={styles.selected}>
               <Text style={{ color: jobTitle ? COLORS.text : "#999", fontSize: 16 }}>
-                { jobTitle || "ex. Graduated" }
+                { jobTitle || "Select your occupation" }
               </Text>
               <Ionicons
-                name={showjobTitlePicker ? "caret-up-outline" : "caret-down-outline"}
+                name={showjobTitlePicker ? "chevron-up" : "chevron-down"}
                 size={20}
-                color="#666"
+                color={COLORS.primary}
               />
             </TouchableOpacity>
             <Modal visible={showjobTitlePicker} transparent animationType="slide">
@@ -660,12 +703,11 @@ export default function InformationScreen() {
                 <View style={styles.fillBack}>
                   <Text style={{ fontWeight: "bold", marginBottom: 8 }}>Select your job title</Text>
                   <Picker selectedValue={jobTitle} onValueChange={setJobTitle} itemStyle={{ color: '#222' }}>
-                    <Picker.Item label="job title" value="" />
-                    <Picker.Item label="Graduated" value="Graduated" />
-                    <Picker.Item label="Undergraduate" value="Undergraduate" />
-                    <Picker.Item label="Business Owner" value="Business-Owner" />
-                    <Picker.Item label="Freelancer" value="Freelancer" />
+                    <Picker.Item label="Select occupation" value="" />
+                    <Picker.Item label="Student" value="Student" />
                     <Picker.Item label="Employee" value="Employee" />
+                    <Picker.Item label="Freelancer" value="Freelancer" />
+                    <Picker.Item label="Business Owner" value="Business Owner" />
                     <Picker.Item label="Other" value="Other" />
                   </Picker>
 
@@ -677,16 +719,18 @@ export default function InformationScreen() {
             </Modal>
           </View>
 
-          <Text style={styles.text}>Smoking</Text>
-          <View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="fitness-outline" size={16} color={COLORS.primary} /> Smoking
+            </Text>
             <TouchableOpacity onPress={() => setShowSmokingPicker(true)} style={styles.selected}>
               <Text style={{ color: smoking ? COLORS.text : "#999", fontSize: 16 }}>
-                {smokingLabel(smoking) /* แสดงเป็น Non-smoking/Sometime ฯลฯ */}
+                {smokingLabel(smoking)}
               </Text>
               <Ionicons
-                name={showSmokingPicker ? "caret-up-outline" : "caret-down-outline"}
+                name={showSmokingPicker ? "chevron-up" : "chevron-down"}
                 size={20}
-                color="#666"
+                color={COLORS.primary}
               />
             </TouchableOpacity>
             <Modal visible={showSmokingPicker} transparent animationType="slide">
@@ -708,26 +752,35 @@ export default function InformationScreen() {
             </Modal>
           </View>
 
-          <Text style={styles.text}>Interests</Text>
-          <TextInput
-            value={interests}
-            onChangeText={setInterests}
-            autoCapitalize="none"
-            placeholder="ex. play game"
-            style={styles.textInput}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              <Ionicons name="heart-outline" size={16} color={COLORS.primary} /> Interests
+            </Text>
+            <TextInput
+              value={interests}
+              onChangeText={setInterests}
+              autoCapitalize="sentences"
+              placeholder="e.g., Travel, Photography, Hiking, Food..."
+              placeholderTextColor="#999"
+              style={styles.textInput}
+            />
+          </View>
 
           <TouchableOpacity
             onPress={handleNext}
-            style={[styles.nextButton, isSubmitting && { opacity: 0.7 }]}
-            disabled={isSubmitting}
+            style={[
+              styles.nextButton, 
+              (isSubmitting || !isFormValid()) && { opacity: 0.5 }
+            ]}
+            disabled={isSubmitting || !isFormValid()}
+            activeOpacity={0.8}
           >
             {isSubmitting ? (
-              <ActivityIndicator size="small" color="#5A1D1D" />
+              <ActivityIndicator size="small" color={COLORS.white} />
             ) : (
               <>
-                <Text style={styles.textNextButton}>{isEdit ? "Save" : "Next"}</Text>
-                <Ionicons name={isEdit ? "save-outline" : "arrow-forward"} size={20} color="#5A1D1D" />
+                <Text style={styles.textNextButton}>{isEdit ? "Save Changes" : "Continue"}</Text>
+                <Ionicons name={isEdit ? "checkmark" : "arrow-forward"} size={22} color={COLORS.white} />
               </>
             )}
           </TouchableOpacity>

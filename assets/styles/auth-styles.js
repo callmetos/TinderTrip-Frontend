@@ -46,13 +46,12 @@ export const styles = StyleSheet.create({
     textAlign: "center",
   },
   subTopic: {
-    fontSize: 32,
+    fontSize: 28,
     color: COLORS.creem,
-    marginBottom: 20,
+    marginBottom: 25,
     textAlign: "center",
-    padding: 20,
     fontWeight: "bold",
-    
+    letterSpacing: 0.5,
   },
   input: {
     backgroundColor: COLORS.white,
@@ -83,15 +82,18 @@ export const styles = StyleSheet.create({
   },
   popUpRegister: {
     backgroundColor: COLORS.redwine,
-    borderRadius: 35,
+    borderRadius: 40,
     padding: 25,
     width: "100%",
-    paddingTop:50,
-    paddingBottom: 130,
+    paddingTop: 30,
+    paddingBottom: 50,
     marginVertical: 20,
     justifyContent: "center",
-    
-    
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   google: {
     backgroundColor: COLORS.background,
@@ -149,12 +151,17 @@ export const styles = StyleSheet.create({
   },
   buttonSignUp: {
     backgroundColor: COLORS.background,
-    borderRadius: 30,
-    padding: 14,
+    borderRadius: 25,
+    paddingVertical: 16,
     alignItems: "center",
-    marginTop: 10,
-    marginBottom: 20,
-    marginHorizontal: 90,
+    marginTop: 20,
+    marginBottom: 10,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
 
   buttonText: {
@@ -261,9 +268,10 @@ export const styles = StyleSheet.create({
   },
   eyeButton: {
     position: "absolute",
-    right: 50,
-    top: 12,
+    right: 45,
+    top: 10,
     padding: 4,
+    zIndex: 1,
   },
   inputError: {
     borderColor: COLORS.expense,

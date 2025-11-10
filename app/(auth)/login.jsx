@@ -42,6 +42,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   // Validation helpers
   const validateInputs = () => {
@@ -198,14 +199,15 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAwareScrollView
-      style={{ flex: 1, backgroundColor: COLORS.background }}
-      contentContainerStyle={{ flexGrow: 1 }}
-      enableOnAndroid={true}
-      enableAutomaticScroll={true}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={styles.container}>
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        keyboardShouldPersistTaps="handled"
+        scrollEnabled={false}
+      >
+        <View style={styles.container}>
         {/* Logo Section */}
         <View style={{ 
           alignItems: "center", 
@@ -270,18 +272,31 @@ export default function LoginScreen() {
           }}>
             Password
           </Text>
-          <TextInput
-            ref={passwordRef}
-            style={styles.inputLogin}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Enter your password"
-            placeholderTextColor="#999"
-            returnKeyType="done"
-            onSubmitEditing={onLoginPress}
-            editable={!loading && !googleLoading}
-          />
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              ref={passwordRef}
+              style={styles.inputLogin}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              placeholder="Enter your password"
+              placeholderTextColor="#999"
+              returnKeyType="done"
+              onSubmitEditing={onLoginPress}
+              editable={!loading && !googleLoading}
+            />
+            <TouchableOpacity
+              style={styles.eyeButton}
+              onPress={() => setShowPassword(!showPassword)}
+              disabled={loading || googleLoading}
+            >
+              <Ionicons 
+                name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                size={22} 
+                color={COLORS.textLight} 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Forgot Password Link */}
@@ -392,6 +407,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAwareScrollView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }

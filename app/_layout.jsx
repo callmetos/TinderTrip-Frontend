@@ -81,7 +81,7 @@ export default function RootLayout() {
     <AuthProvider>
       <SafeScreen>
         <Slot />
-        <StatusBar style="dark" />
+        <StatusBar style="light" backgroundColor={COLORS.redwine} />
       </SafeScreen>
     </AuthProvider>
   );

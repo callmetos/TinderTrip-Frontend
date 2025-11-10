@@ -27,11 +27,11 @@ const WelcomeScreen = () => {
 
         if (!mounted) return;
 
-        // If profile is already completed, send user to home. Otherwise to profile.
+        // If profile is already completed, send user to home. Otherwise to information page.
         if (setupCompleted) {
           router.replace('/home');
         } else {
-          router.replace('/profile');
+          router.replace('/information');
         }
       } catch (err) {
         // If unauthorized, redirect to login. Otherwise show an alert and keep user on welcome.

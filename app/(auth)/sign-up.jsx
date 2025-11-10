@@ -197,180 +197,225 @@ export default function SignUpScreen() {
 
 return (
   <ProtectedRoute requireAuth={false}>
-    <KeyboardAwareScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={{ flexGrow: 1 }}
-      enableOnAndroid={true}
-      enableAutomaticScroll={true}
-          //extraScrollHeight={100}
-    >
-
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 20,
-        justifyContent: "center",
-        marginTop: 40,
-      }}
-    >
-      <Image
-        source={require("../../assets/images/Login-page/logo.png")}
-        style={styles.logo}
-      />
-      <Text style={styles.logoText}>TinderTrip</Text>
-    </View>
-
-    
-    <View style={styles.popUpRegister}>
-      
-      <TouchableOpacity onPress={() => router.push('/login')} >
-          <Ionicons name="chevron-back" size={32} color={COLORS.background}  />
-      </TouchableOpacity>
-      <Text style = {styles.subTopic}>Sign up</Text>
-     
-      <TextInput
-        value={display_name}
-        onChangeText={(text) => {
-          setDisplayName(text);
-          const validation = validateDisplayName(text);
-          if (!validation.isValid) {
-            setError(validation.error);
-          } else {
-            setError("");
-          }
-        }}
-        style={[
-          styles.inputLogin,
-          error && error.includes("display name") && styles.inputError
-        ]}
-        placeholder="Display name"
-        placeholderTextColor="gray"
-      />
-      <Notification 
-        type="error" 
-        message={error && error.includes("display name") ? error : null} 
-        onClose={() => setError("")} 
-      />
-
-      <TextInput
-        value={email}
-        onChangeText={(text) => {
-          setEmail(text);
-          const validation = validateEmail(text);
-          if (!validation.isValid) {
-            setError(validation.error);
-          } else {
-            setError("");
-          }
-        }}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={[
-          styles.inputLogin,
-          error && (error.includes("email") || error.includes("Email")) && styles.inputError
-        ]}
-        placeholder="Email"
-        placeholderTextColor="gray"
-      />
-      <Notification 
-        type="error" 
-        message={error && (error.includes("email") || error.includes("Email")) ? error : null} 
-        onClose={() => setError("")} 
-      />
-
-      <View style={{ position: 'relative' }}>
-        <TextInput
-          value={password}
-          onChangeText={handlePasswordChange}
-          secureTextEntry={!showPassword}
-          style={[styles.inputLogin, { paddingRight: 44 }]}
-          placeholder="Password"
-          placeholderTextColor="gray"
-        />
-        <TouchableOpacity
-          onPress={() => setShowPassword((v) => !v)}
-          style={{ position: 'absolute', right: 50, top: 0, bottom: 15, justifyContent: 'center' }}
-        >
-          <Ionicons
-            name={showPassword ? 'eye-off' : 'eye'}
-            size={22}
-            color={COLORS.redwine}
-          />
-        </TouchableOpacity>
-      </View>
-      <Notification 
-        type="error" 
-        message={error && (error.includes("password") || error.includes("Password") || error.includes("characters")) && !error.includes("match") ? error : null} 
-        onClose={() => setError("")} 
-      />
-
-      <View style={{ position: 'relative' }}>
-        <TextInput
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry={!showConfirmPassword}
-          style={[styles.inputLogin, { paddingRight: 44 }]}
-          placeholder="Confirm password"
-          placeholderTextColor="gray"
-        />
-        <TouchableOpacity
-          onPress={() => setShowConfirmPassword((v) => !v)}
-          style={{ position: 'absolute', right: 50, top: 0, bottom: 15, justifyContent: 'center' }}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons
-            name={showConfirmPassword ? 'eye-off' : 'eye'}
-            size={22}
-            color={COLORS.redwine}
-          />
-        </TouchableOpacity>
-      </View>
-      <Notification 
-        type="error" 
-        message={error && (error.includes("confirm") || error.includes("match")) ? error : null} 
-        onClose={() => setError("")} 
-      />
-
-      {/* Password strength indicator */}
-      <View style={styles.passwordStrengthContainer}>
-        <View style={[
-          styles.strengthBar,
-          { width: `${passwordStrength}%`, backgroundColor: strengthColor }
-        ]} />
-        <Text style={styles.strengthText}>{strengthLabel}</Text>
-      </View>
-
-      {/* แสดง success notification */}
-      <Notification 
-        type="success" 
-        message={success} 
-        onClose={() => setSuccess("")} 
-      />
-
-      <TouchableOpacity 
-        style={[
-          styles.buttonSignUp,
-          loading && styles.buttonDisabled
-        ]} 
-        onPress={onSignUpPress} 
-        disabled={loading}
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <KeyboardAwareScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        enableOnAndroid={true}
+        enableAutomaticScroll={true}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+        {/* Logo Section */}
+        <View style={{
+          alignItems: "center",
+          marginBottom: 30,
+          marginTop: 40,
+        }}>
+          <Image
+            source={require("../../assets/images/Login-page/logo.png")}
+            style={styles.logo}
+          />
+          <Text style={styles.logoText}>TinderTrip</Text>
           <Text style={{ 
-            fontWeight: 'bold', 
             fontSize: 16, 
-            color: COLORS.redwine, 
-            marginRight: loading ? 10 : 0 
+            color: COLORS.textLight,
+            marginTop: 5,
           }}>
-            {loading ? "Signing up..." : "Sign Up"}
+            Create your account
           </Text>
-          {loading && <ActivityIndicator size="small" color={COLORS.redwine} />}
         </View>
-      </TouchableOpacity>
+
+        {/* Form Container */}
+        <View style={[styles.popUpRegister, { paddingTop: 30, paddingBottom: 50 }]}>
+          
+          <TouchableOpacity 
+            onPress={() => router.push('/login')} 
+            style={{ marginBottom: 10 }}
+          >
+            <Ionicons name="arrow-back" size={28} color={COLORS.background} />
+          </TouchableOpacity>
+          
+          <Text style={[styles.subTopic, { marginBottom: 30, paddingTop: 0 }]}>Sign Up</Text>
+          
+          {/* Display Name Input */}
+          <TextInput
+            value={display_name}
+            onChangeText={(text) => {
+              setDisplayName(text);
+              const validation = validateDisplayName(text);
+              if (!validation.isValid) {
+                setError(validation.error);
+              } else {
+                setError("");
+              }
+            }}
+            style={[
+              styles.inputLogin,
+              error && error.includes("display name") && styles.inputError
+            ]}
+            placeholder="Display name"
+            placeholderTextColor="#999"
+          />
+          <Notification 
+            type="error" 
+            message={error && error.includes("display name") ? error : null} 
+            onClose={() => setError("")} 
+          />
+
+          {/* Email Input */}
+          <TextInput
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              const validation = validateEmail(text);
+              if (!validation.isValid) {
+                setError(validation.error);
+              } else {
+                setError("");
+              }
+            }}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            style={[
+              styles.inputLogin,
+              error && (error.includes("email") || error.includes("Email")) && styles.inputError
+            ]}
+            placeholder="Email address"
+            placeholderTextColor="#999"
+          />
+          <Notification 
+            type="error" 
+            message={error && (error.includes("email") || error.includes("Email")) ? error : null} 
+            onClose={() => setError("")} 
+          />
+
+          {/* Password Input */}
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              value={password}
+              onChangeText={handlePasswordChange}
+              secureTextEntry={!showPassword}
+              style={styles.inputLogin}
+              placeholder="Password"
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword((v) => !v)}
+              style={styles.eyeButton}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color="#999"
+              />
+            </TouchableOpacity>
+          </View>
+          <Notification 
+            type="error" 
+            message={error && (error.includes("password") || error.includes("Password") || error.includes("characters")) && !error.includes("match") ? error : null} 
+            onClose={() => setError("")} 
+          />
+
+          {/* Confirm Password Input */}
+          <View style={{ position: 'relative' }}>
+            <TextInput
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+              style={styles.inputLogin}
+              placeholder="Confirm password"
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity
+              onPress={() => setShowConfirmPassword((v) => !v)}
+              style={styles.eyeButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons
+                name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color="#999"
+              />
+            </TouchableOpacity>
+          </View>
+          <Notification 
+            type="error" 
+            message={error && (error.includes("confirm") || error.includes("match")) ? error : null} 
+            onClose={() => setError("")} 
+          />
+
+          {/* Password strength indicator */}
+          {password.length > 0 && (
+            <>
+              <View style={styles.passwordStrengthContainer}>
+                <View style={[
+                  styles.strengthBar,
+                  { width: `${passwordStrength}%`, backgroundColor: strengthColor }
+                ]} />
+              </View>
+              {strengthLabel && (
+                <Text style={[styles.strengthText, { color: strengthColor, marginLeft: 0, textAlign: 'center' }]}>
+                  {strengthLabel}
+                </Text>
+              )}
+            </>
+          )}
+
+          {/* แสดง success notification */}
+          <Notification 
+            type="success" 
+            message={success} 
+            onClose={() => setSuccess("")} 
+          />
+
+          {/* Sign Up Button */}
+          <TouchableOpacity 
+            style={[
+              styles.buttonSignUp,
+              loading && styles.buttonDisabled
+            ]} 
+            onPress={onSignUpPress} 
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={COLORS.redwine} />
+            ) : (
+              <Text style={{ 
+                fontWeight: 'bold', 
+                fontSize: 17, 
+                color: COLORS.redwine,
+              }}>
+                Sign Up
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          {/* Login Link */}
+          <View style={{ 
+            flexDirection: "row", 
+            alignItems: "center", 
+            marginTop: 15,
+            justifyContent: "center" 
+          }}>
+            <Text style={{ fontSize: 15, color: COLORS.background }}>
+              Already have an account?{' '}
+            </Text>
+            <TouchableOpacity 
+              onPress={() => router.push('/login')}
+              disabled={loading}
+            >
+              <Text style={{ 
+                color: COLORS.background, 
+                fontSize: 15, 
+                fontWeight: '700',
+                textDecorationLine: 'underline'
+              }}>
+                Login
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAwareScrollView>
     </View>
-  
-  </KeyboardAwareScrollView>
   </ProtectedRoute>
 )
 };
