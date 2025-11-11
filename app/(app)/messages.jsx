@@ -7,12 +7,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 const LAST_READ_KEY = 'CHAT_LAST_READ_';
 const UNREAD_COUNT_KEY = 'TOTAL_UNREAD_COUNT';
 
 export default function ChatListScreen() {
   const router = useRouter();
+  const { user } = useAuth(); // Get current user
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [chatRooms, setChatRooms] = useState([]);
@@ -83,6 +85,7 @@ export default function ChatListScreen() {
     try {
       const messagesMap = {};
       const unreadMap = {};
+      const currentUserId = user?.id; // Get current user ID
       
       // Fetch last message for each room (limit 1)
       await Promise.all(
@@ -110,19 +113,29 @@ export default function ChatListScreen() {
                   const lastReadIndex = allMessages.findIndex(msg => msg.id === lastReadId);
                   
                   if (lastReadIndex >= 0) {
-                    unreadMap[room.id] = lastReadIndex;
+                    // Count only messages from other users
+                    const unreadFromOthers = allMessages.slice(0, lastReadIndex).filter(msg => 
+                      String(msg.sender_id) !== String(currentUserId)
+                    ).length;
+                    unreadMap[room.id] = unreadFromOthers;
                   } else if (allMessages.length > 0) {
-                    // Last read message not in recent 50, assume all are unread
-                    unreadMap[room.id] = allMessages.length;
+                    // Last read message not in recent 50, count messages from others
+                    const unreadFromOthers = allMessages.filter(msg => 
+                      String(msg.sender_id) !== String(currentUserId)
+                    ).length;
+                    unreadMap[room.id] = unreadFromOthers;
                   }
                 }
               } else {
-                // No last read record, count all messages as unread
+                // No last read record, count all messages from others as unread
                 const unreadResponse = await api.get(`/api/v1/chat/rooms/${room.id}/messages`, {
                   params: { page: 1, limit: 50 }
                 });
                 const allMessages = unreadResponse.data.messages || [];
-                unreadMap[room.id] = allMessages.length;
+                const unreadFromOthers = allMessages.filter(msg => 
+                  String(msg.sender_id) !== String(currentUserId)
+                ).length;
+                unreadMap[room.id] = unreadFromOthers;
               }
             }
           } catch (err) {
@@ -137,7 +150,7 @@ export default function ChatListScreen() {
       // Calculate total unread count and save to AsyncStorage
       const totalUnread = Object.values(unreadMap).reduce((sum, count) => sum + count, 0);
       await AsyncStorage.setItem(UNREAD_COUNT_KEY, totalUnread.toString());
-      console.log('Total unread messages:', totalUnread);
+      console.log('Total unread messages (from others only):', totalUnread);
       
       // Sort rooms by last message time
       sortRoomsByActivity(rooms, messagesMap);
@@ -261,13 +274,9 @@ export default function ChatListScreen() {
             </View>
           </View>
           
-          <Text style={styles.roomLocation} numberOfLines={1}>
-            {item.event?.address_text || 'No location'}
-          </Text>
-          
           {lastMessage && (
             <Text style={[styles.lastMessage, hasUnread && styles.lastMessageUnread]} numberOfLines={1}>
-              {lastMessage.sender?.full_name || 'Someone'}: {lastMessage.body || 'Message'}
+              {lastMessage.sender?.display_name || 'Someone'}: {lastMessage.body || 'Message'}
             </Text>
           )}
           

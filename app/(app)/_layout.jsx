@@ -5,11 +5,13 @@ import { useState, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 const UNREAD_COUNT_KEY = 'TOTAL_UNREAD_COUNT';
 const LAST_READ_KEY = 'CHAT_LAST_READ_';
 
 export default function AppLayout() {
+  const { user } = useAuth(); // Get current user
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const appState = useRef(AppState.currentState);
   const pollingInterval = useRef(null);
@@ -51,6 +53,7 @@ export default function AppLayout() {
     }
     
     isCalculating.current = true;
+    const currentUserId = user?.id; // Get current user ID
     
     try {
       // Fetch all chat rooms
@@ -83,17 +86,28 @@ export default function AppLayout() {
                 const lastReadIndex = allMessages.findIndex(msg => msg.id === lastReadId);
                 
                 if (lastReadIndex >= 0) {
-                  totalUnread += lastReadIndex;
+                  // Count only messages from other users
+                  const unreadFromOthers = allMessages.slice(0, lastReadIndex).filter(msg => 
+                    String(msg.sender_id) !== String(currentUserId)
+                  ).length;
+                  totalUnread += unreadFromOthers;
                 } else if (allMessages.length > 0) {
-                  totalUnread += allMessages.length;
+                  // Count messages from other users
+                  const unreadFromOthers = allMessages.filter(msg => 
+                    String(msg.sender_id) !== String(currentUserId)
+                  ).length;
+                  totalUnread += unreadFromOthers;
                 }
               } else if (!lastReadId) {
-                // No last read record, count all messages
+                // No last read record, count all messages from others
                 const unreadResponse = await api.get(`/api/v1/chat/rooms/${room.id}/messages`, {
                   params: { page: 1, limit: 50 }
                 });
                 const allMessages = unreadResponse.data.messages || [];
-                totalUnread += allMessages.length;
+                const unreadFromOthers = allMessages.filter(msg => 
+                  String(msg.sender_id) !== String(currentUserId)
+                ).length;
+                totalUnread += unreadFromOthers;
               }
             }
           } catch (err) {
@@ -102,7 +116,7 @@ export default function AppLayout() {
         })
       );
       
-      console.log('Calculated total unread:', totalUnread);
+      // console.log('Calculated total unread (from others only):', totalUnread);
       setTotalUnreadCount(totalUnread);
       await AsyncStorage.setItem(UNREAD_COUNT_KEY, totalUnread.toString());
     } catch (err) {
