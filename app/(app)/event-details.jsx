@@ -36,6 +36,11 @@ export default function EventDetailsScreen() {
   const currentUserId = user?.id;
   const currentUserName = user?.display_name || user?.email || 'Someone';
 
+  // Debug: Log params received
+  useEffect(() => {
+    console.log('EventDetailsScreen params:', { id, from });
+  }, [id, from]);
+
   useEffect(() => {
     loadAuthToken();
   }, []);

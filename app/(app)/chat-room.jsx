@@ -29,7 +29,7 @@ import {
 export default function ChatRoomScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { roomId, eventId, eventTitle, from } = params;
+  const { roomId, eventId: paramEventId, eventTitle: paramEventTitle, from } = params;
   const { user } = useAuth(); // Get user from AuthContext
   
   const [loading, setLoading] = useState(true);
@@ -41,6 +41,8 @@ export default function ChatRoomScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [eventData, setEventData] = useState(null);
   const [confirming, setConfirming] = useState(false);
+  const [eventId, setEventId] = useState(paramEventId); // Store eventId in state
+  const [eventTitle, setEventTitle] = useState(paramEventTitle); // Store eventTitle in state
   const flatListRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const lastMessageIdRef = useRef(null);
@@ -55,7 +57,6 @@ export default function ChatRoomScreen() {
       console.log('Current user ID from AuthContext:', user.id, 'Type:', typeof user.id);
     }
     
-    fetchEventData();
     requestNotificationPermissions();
     
     // Clear badge count when entering chat room
@@ -108,6 +109,13 @@ export default function ChatRoomScreen() {
     };
   }, [user]);
 
+  // Fetch event data when eventId changes
+  useEffect(() => {
+    if (eventId) {
+      fetchEventData();
+    }
+  }, [eventId]);
+
   // Setup edge-swipe (left edge -> swipe right) to go to messages
   useEffect(() => {
     const EDGE_WIDTH = 28; // px from left edge to activate
@@ -132,6 +140,12 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     if (roomId) {
       console.log('Chat Room - Loading room:', roomId, 'Event:', eventTitle);
+      
+      // If we don't have eventId, fetch room data to get it
+      if (!eventId) {
+        fetchRoomData();
+      }
+      
       fetchMessages();
       
       // Start polling for new messages every 3 seconds
@@ -143,6 +157,32 @@ export default function ChatRoomScreen() {
       stopPolling();
     };
   }, [roomId]);
+
+  const fetchRoomData = async () => {
+    try {
+      console.log('Fetching room data for roomId:', roomId);
+      const response = await api.get(`/api/v1/chat/rooms`);
+      const rooms = response.data?.rooms || [];
+      const currentRoom = rooms.find(room => room.id === roomId);
+      
+      if (currentRoom) {
+        console.log('Found room:', currentRoom);
+        const roomEventId = currentRoom.event_id || currentRoom.event?.id;
+        const roomEventTitle = currentRoom.event?.title;
+        
+        if (roomEventId) {
+          console.log('Setting eventId from room data:', roomEventId);
+          setEventId(roomEventId);
+        }
+        if (roomEventTitle && !eventTitle) {
+          console.log('Setting eventTitle from room data:', roomEventTitle);
+          setEventTitle(roomEventTitle);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch room data:', err);
+    }
+  };
 
   const handleGoBack = () => {
     if (from) {
@@ -168,7 +208,10 @@ export default function ChatRoomScreen() {
   };
 
   const fetchEventData = async () => {
-    if (!eventId) return;
+    if (!eventId) {
+      console.log('No eventId available to fetch event data');
+      return;
+    }
     
     try {
       console.log('Fetching event data:', eventId);
@@ -569,7 +612,9 @@ export default function ChatRoomScreen() {
         <TouchableOpacity 
           style={styles.headerButton}
           onPress={() => {
+            console.log('Info button pressed. eventId:', eventId);
             if (eventId) {
+              console.log('Navigating to event-details with id:', eventId, 'from: chat-room');
               router.push({
                 pathname: '/event-details',
                 params: {
@@ -577,6 +622,9 @@ export default function ChatRoomScreen() {
                   from: 'chat-room'
                 }
               });
+            } else {
+              console.warn('eventId is undefined, cannot navigate to event-details');
+              Alert.alert('Error', 'Event information not available');
             }
           }}
         >
