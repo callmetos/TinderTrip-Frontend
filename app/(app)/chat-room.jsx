@@ -11,12 +11,16 @@ import {
   Platform,
   Alert,
   PanResponder,
-  AppState
+  AppState,
+  Animated,
+  ScrollView,
+  Easing
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -56,6 +60,91 @@ export default function ChatRoomScreen() {
   const pollInterval = useRef(3000); // Dynamic polling interval
   const lastActivityTime = useRef(Date.now());
   const errorCount = useRef(0); // Track consecutive errors
+  const translateX = useRef(new Animated.Value(0)).current;
+  const slideInAnim = useRef(new Animated.Value(300)).current; // Start from right (300px off screen)
+
+  // Slide in animation when component mounts - smooth entry
+  useEffect(() => {
+    Animated.timing(slideInAnim, {
+      toValue: 0,
+      duration: 350,
+      easing: Easing.out(Easing.cubic), // Smooth deceleration curve
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  // Reset translateX when screen gets focus
+  useFocusEffect(
+    React.useCallback(() => {
+      translateX.setValue(0);
+      return () => {
+        // Cleanup: reset on unfocus too
+        translateX.setValue(0);
+      };
+    }, [translateX])
+  );
+
+  // Handle swipe gesture
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = ({ nativeEvent }) => {
+    if (nativeEvent.state === State.END) {
+      const { translationX: swipeDistance, velocityX } = nativeEvent;
+      const screenWidth = 375; // approximate screen width
+      const threshold = screenWidth / 2; // halfway point
+      
+      // Close if: 1) Fast swipe (high velocity) OR 2) Swiped past halfway
+      const shouldClose = velocityX > 800 || swipeDistance > threshold;
+      
+      if (shouldClose) {
+        // Smooth slide out animation before closing
+        Animated.timing(translateX, {
+          toValue: 400,
+          duration: 250,
+          easing: Easing.in(Easing.ease),
+          useNativeDriver: true,
+        }).start(() => {
+          // Use router.back() to go back without re-rendering
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/messages');
+          }
+        });
+      } else {
+        // Reset position with smoother spring animation
+        Animated.spring(translateX, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 9,
+          velocity: -velocityX / 100, // Use gesture velocity for natural feel
+        }).start();
+      }
+    } else if (nativeEvent.state === State.BEGAN) {
+      // Ensure we start from 0
+      translateX.setValue(0);
+    }
+  };
+
+  const [showMessagesBackground, setShowMessagesBackground] = useState(true);
+  const [backgroundRooms, setBackgroundRooms] = useState([]);
+
+  useEffect(() => {
+    // Fetch rooms for background
+    const fetchBackgroundRooms = async () => {
+      try {
+        const response = await api.get('/api/v1/chat/rooms');
+        setBackgroundRooms(response.data.rooms || []);
+      } catch (err) {
+        console.error('Failed to fetch background rooms:', err);
+      }
+    };
+    fetchBackgroundRooms();
+  }, []);
 
   useEffect(() => {
     // Set current user ID from AuthContext
@@ -235,6 +324,10 @@ export default function ChatRoomScreen() {
     } else {
       router.replace('/messages');
     }
+  };
+
+  const handleBackPress = () => {
+    // This function is no longer used - navigation happens in animation callback
   };
 
   // Utility function to remove duplicate messages by ID
@@ -694,16 +787,69 @@ export default function ChatRoomScreen() {
   };
 
   return (
-    <View style={{ flex: 1 }} {...(panResponder.current ? panResponder.current.panHandlers : {})}>
-    <SafeAreaView style={styles.container} edges={['']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={handleGoBack}
-          style={styles.backButton}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* Background Layer - Simplified Messages List */}
+      <View style={StyleSheet.absoluteFill}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }} edges={[]}>
+          <View style={styles.backgroundHeader}>
+            <Text style={styles.backgroundHeaderTitle}>Messages</Text>
+          </View>
+          <ScrollView style={{ flex: 1 }}>
+            {backgroundRooms.map((room, index) => (
+              <View key={room.id || index} style={styles.backgroundRoomCard}>
+                <View style={styles.backgroundRoomIcon}>
+                  <Ionicons name="people" size={20} color={COLORS.redwine} />
+                </View>
+                <View style={styles.backgroundRoomContent}>
+                  <Text style={styles.backgroundRoomTitle} numberOfLines={1}>
+                    {room.event?.title || 'Event Chat'}
+                  </Text>
+                  <Text style={styles.backgroundRoomSubtitle} numberOfLines={1}>
+                    {room.event?.address_text || 'No location'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </SafeAreaView>
+      </View>
+
+      {/* Foreground Layer - Chat Room with Gesture */}
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+        activeOffsetX={10}
+        failOffsetX={-5}
+      >
+        <Animated.View 
+          style={{ 
+            flex: 1,
+            backgroundColor: '#fff',
+            shadowColor: '#000',
+            shadowOffset: { width: -2, height: 0 },
+            shadowOpacity: translateX.interpolate({
+              inputRange: [0, 100],
+              outputRange: [0, 0.3],
+              extrapolate: 'clamp',
+            }),
+            shadowRadius: 10,
+            elevation: 5,
+            transform: [
+              { 
+                translateX: Animated.add(slideInAnim, translateX)
+              }
+            ]
+          }}
         >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
+          <SafeAreaView style={styles.container} edges={['']}>
+            {/* Header */}
+            <View style={styles.header}>
+              <TouchableOpacity 
+                onPress={handleGoBack}
+                style={styles.backButton}
+              >
+                <Ionicons name="arrow-back" size={24} color="#333" />
+              </TouchableOpacity>
         
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle} numberOfLines={1}>
@@ -867,7 +1013,9 @@ export default function ChatRoomScreen() {
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
-    </View>
+        </Animated.View>
+      </PanGestureHandler>
+    </GestureHandlerRootView>
   );
 }
 
@@ -1115,5 +1263,47 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: COLORS.redwine,
+  },
+  // Background messages list styles
+  backgroundHeader: {
+    padding: 20,
+    paddingBottom: 10,
+    backgroundColor: '#fff',
+  },
+  backgroundHeaderTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  backgroundRoomCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    marginHorizontal: 16,
+    marginVertical: 6,
+    borderRadius: 12,
+  },
+  backgroundRoomIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#fee',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  backgroundRoomContent: {
+    flex: 1,
+  },
+  backgroundRoomTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  backgroundRoomSubtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
   },
 });

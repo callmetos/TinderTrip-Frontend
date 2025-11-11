@@ -248,6 +248,13 @@ export default function AppLayout() {
           href: null,
         }}
       />
+      {/* Hide preferences from tabs */}
+      <Tabs.Screen
+        name="preferences"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

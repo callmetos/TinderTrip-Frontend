@@ -212,7 +212,7 @@ export default function ProfileScreen() {
       icon: 'settings-outline',
       title: 'Preferences',
       subtitle: 'Travel and food preferences',
-      onPress: () => Alert.alert('Coming Soon', 'Preferences feature is coming soon!'),
+      onPress: () => router.push('/preferences'),
     },
     {
       icon: 'notifications-outline',

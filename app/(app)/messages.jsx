@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Modal, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 import { useAuth } from '../../src/contexts/AuthContext';
+import ChatRoomModal from '../../src/components/ChatRoomModal';
 
 const LAST_READ_KEY = 'CHAT_LAST_READ_';
 const UNREAD_COUNT_KEY = 'TOTAL_UNREAD_COUNT';
@@ -15,27 +16,34 @@ const UNREAD_COUNT_KEY = 'TOTAL_UNREAD_COUNT';
 export default function ChatListScreen() {
   const router = useRouter();
   const { user } = useAuth(); // Get current user
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start as false to avoid loading screen
   const [refreshing, setRefreshing] = useState(false);
   const [chatRooms, setChatRooms] = useState([]);
   const [lastMessages, setLastMessages] = useState({});
   const [unreadCounts, setUnreadCounts] = useState({});
+  const [initialLoad, setInitialLoad] = useState(true);
+  
+  // Modal state
+  const [chatModalVisible, setChatModalVisible] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState(null);
 
   useEffect(() => {
-    fetchChatRooms();
+    fetchChatRooms(true); // Initial fetch
   }, []);
 
   // Re-fetch chat rooms whenever the screen gains focus (e.g., after leaving an event)
   useFocusEffect(
     useCallback(() => {
-      fetchChatRooms();
+      fetchChatRooms(false); // Silent refresh on focus
       return undefined;
     }, [])
   );
 
-  const fetchChatRooms = async () => {
+  const fetchChatRooms = async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+      }
       
       // Fetch chat rooms
       const response = await api.get('/api/v1/chat/rooms');
@@ -78,6 +86,7 @@ export default function ChatListScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setInitialLoad(false);
     }
   };
 
@@ -181,7 +190,7 @@ export default function ChatListScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchChatRooms();
+    fetchChatRooms(false);
   };
 
   const handleRoomPress = (room) => {
@@ -204,15 +213,15 @@ export default function ChatListScreen() {
       });
     }
     
-    router.push({
-      pathname: '/chat-room',
-      params: { 
-        roomId: room.id,
-        eventId: room.event?.id,
-        eventTitle: room.event?.title || 'Chat',
-        from: 'messages'
-      }
-    });
+    // Open as modal overlay instead of navigation
+    setSelectedRoom(room);
+    setChatModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setChatModalVisible(false);
+    // Refresh chat rooms when modal closes
+    fetchChatRooms(false);
   };
 
   const formatDate = (dateString) => {
@@ -312,9 +321,9 @@ export default function ChatListScreen() {
     </View>
   );
 
-  if (loading && !refreshing) {
+  if (loading && initialLoad) {
     return (
-      <SafeAreaView style={styles.container} edges={['']}>
+      <SafeAreaView style={styles.container} edges={[]}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Messages</Text>
         </View>
@@ -351,6 +360,17 @@ export default function ChatListScreen() {
           />
         }
       />
+
+      {/* Chat Room Modal Overlay */}
+      {selectedRoom && (
+        <ChatRoomModal
+          visible={chatModalVisible}
+          onClose={handleCloseModal}
+          roomId={selectedRoom.id}
+          eventId={selectedRoom.event?.id}
+          eventTitle={selectedRoom.event?.title || 'Chat'}
+        />
+      )}
     </SafeAreaView>
   );
 }
