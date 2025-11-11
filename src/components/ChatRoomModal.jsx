@@ -14,7 +14,8 @@ import {
   Animated,
   Easing,
   Dimensions,
-  Keyboard
+  Keyboard,
+  StatusBar
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -271,6 +272,7 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
               }
             ]}
           >
+            <StatusBar barStyle="dark-content" backgroundColor="#fff" />
             <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
               {/* Header */}
               <View style={styles.header}>
@@ -366,6 +368,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+    paddingTop: Platform.OS === 'ios' ? 0 : StatusBar.currentHeight || 0,
   },
   header: {
     flexDirection: 'row',

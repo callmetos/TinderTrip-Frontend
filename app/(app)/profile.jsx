@@ -289,7 +289,7 @@ export default function ProfileScreen() {
               </View>
             )}
             <View style={styles.avatarEditButton}>
-              <Ionicons name="camera" size={16} color="#fff" />
+              <Ionicons name="pencil" size={16} color="#fff" />
             </View>
           </TouchableOpacity>
           
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60, // Add extra padding for status bar area
+    paddingTop: 60,
     backgroundColor: '#fff',
     marginBottom: 16,
   },
@@ -488,7 +488,7 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 16,
-    fontFamily: FONTS.semiBold,
+    fontFamily: FONTS.SemiBold,
     color: '#333',
     marginBottom: 2,
   },

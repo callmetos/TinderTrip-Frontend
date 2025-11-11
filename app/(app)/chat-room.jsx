@@ -67,7 +67,7 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     Animated.timing(slideInAnim, {
       toValue: 0,
-      duration: 350,
+      duration: 150,
       easing: Easing.out(Easing.cubic), // Smooth deceleration curve
       useNativeDriver: true,
     }).start();
@@ -103,7 +103,7 @@ export default function ChatRoomScreen() {
         // Smooth slide out animation before closing
         Animated.timing(translateX, {
           toValue: 400,
-          duration: 250,
+          duration: 150,
           easing: Easing.in(Easing.ease),
           useNativeDriver: true,
         }).start(() => {

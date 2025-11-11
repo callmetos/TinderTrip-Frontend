@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../src/api/client.js';
-import { COLORS } from '@/color/colors';
+import { COLORS, FONTS } from '@/color/colors';
 
 const TABS = ['Upcoming', 'Past'];
 
@@ -236,7 +236,7 @@ export default function MyEventsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.centerContainer}>
+      <SafeAreaView style={styles.centerContainer} edges={['']}>
         <ActivityIndicator size="large" color={COLORS.redwine} />
         <Text style={styles.loadingText}>Loading your events...</Text>
       </SafeAreaView>
@@ -244,7 +244,7 @@ export default function MyEventsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
+    <SafeAreaView style={styles.container} edges={['']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Events</Text>
         <Text style={styles.headerSubtitle}>Events you've joined</Text>
@@ -369,6 +369,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
+    fontFamily: FONTS.promptBold,
     fontWeight: '700',
     color: '#333',
     marginBottom: 12,
