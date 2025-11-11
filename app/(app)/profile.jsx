@@ -10,7 +10,7 @@ import { COLORS, FONTS } from '@/color/colors';
 import { useAuth } from '../../src/contexts/AuthContext.js';
 import { getUserStats } from '../../src/api/user.service.js';
 import { getUserProfile, updateUserProfile } from '../../src/api/info.service.js';
-import { setAuthToken } from '../../src/api/client.js';
+import { api, setAuthToken } from '../../src/api/client.js';
 import { loadToken } from '../../src/lib/storage.js';
 
 export default function ProfileScreen() {
@@ -146,18 +146,25 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         const newAvatarUri = result.assets[0].uri;
-        
         // Update local state immediately
         const updatedUser = { ...localUser, avatar_url: newAvatarUri };
         setLocalUser(updatedUser);
         await AsyncStorage.setItem('USER_DATA', JSON.stringify(updatedUser));
-        
         // Update on server
         try {
           const token = await loadToken();
           if (token) {
             setAuthToken(token);
-            await updateUserProfile({ avatar_url: newAvatarUri });
+            // Upload avatar as file (multipart/form-data)
+            const formData = new FormData();
+            const name = result.assets[0].fileName || 'avatar.jpg';
+            const type = result.assets[0].mimeType || 'image/jpeg';
+            formData.append('file', { uri: newAvatarUri, name, type });
+            await api.put('/api/v1/users/profile', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            // ดึงข้อมูลใหม่จาก backend เพื่อ sync
+            await fetchAndSyncUserProfile();
           }
         } catch (error) {
           console.error('Failed to update avatar on server:', error);
