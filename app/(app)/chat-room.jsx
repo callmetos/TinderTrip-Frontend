@@ -10,11 +10,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  PanResponder
+  PanResponder,
+  AppState
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -49,6 +51,11 @@ export default function ChatRoomScreen() {
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
   const panResponder = useRef(null);
+  const appState = useRef(AppState.currentState);
+  const [appStateVisible, setAppStateVisible] = useState(appState.current);
+  const pollInterval = useRef(3000); // Dynamic polling interval
+  const lastActivityTime = useRef(Date.now());
+  const errorCount = useRef(0); // Track consecutive errors
 
   useEffect(() => {
     // Set current user ID from AuthContext
@@ -105,6 +112,11 @@ export default function ChatRoomScreen() {
     return () => {
       if (responseListener.current) {
         responseListener.current.remove();
+        responseListener.current = null;
+      }
+      if (notificationListener.current) {
+        notificationListener.current.remove();
+        notificationListener.current = null;
       }
     };
   }, [user]);
@@ -115,6 +127,19 @@ export default function ChatRoomScreen() {
       fetchEventData();
     }
   }, [eventId]);
+
+  // Monitor app state changes
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      appState.current = nextAppState;
+      setAppStateVisible(nextAppState);
+      console.log('App state changed to:', nextAppState);
+    });
+
+    return () => {
+      subscription?.remove();
+    };
+  }, []);
 
   // Setup edge-swipe (left edge -> swipe right) to go to messages
   useEffect(() => {
@@ -147,16 +172,33 @@ export default function ChatRoomScreen() {
       }
       
       fetchMessages();
-      
-      // Start polling for new messages every 3 seconds
-      startPolling();
     }
     
-    // Cleanup polling on unmount
+    // Cleanup - save last read when unmounting or roomId changes
     return () => {
-      stopPolling();
+      if (messages.length > 0 && roomId) {
+        const lastMessageId = messages[messages.length - 1]?.id;
+        if (lastMessageId) {
+          AsyncStorage.setItem(`CHAT_LAST_READ_${roomId}`, lastMessageId)
+            .catch(err => console.error('Failed to save last read:', err));
+          console.log('Marked chat as read. Last message ID:', lastMessageId);
+        }
+      }
     };
   }, [roomId]);
+
+  // Use useFocusEffect to manage polling - start when focused, stop when unfocused
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('Chat room focused - starting polling');
+      startPolling();
+      
+      return () => {
+        console.log('Chat room unfocused - stopping polling');
+        stopPolling();
+      };
+    }, [roomId])
+  );
 
   const fetchRoomData = async () => {
     try {
@@ -271,7 +313,7 @@ export default function ChatRoomScreen() {
       });
       
       const newMessages = response.data.messages || [];
-      console.log('Received messages:', newMessages.length);
+      // console.log('Received messages:', newMessages.length);
       
       if (pageNum === 1) {
         // Remove duplicates and set messages
@@ -303,21 +345,50 @@ export default function ChatRoomScreen() {
     // Clear any existing interval
     stopPolling();
     
-    // Poll every 3 seconds
-    pollingIntervalRef.current = setInterval(() => {
-      checkForNewMessages();
-    }, 3000);
+    // Reset polling interval and error count
+    pollInterval.current = 3000;
+    errorCount.current = 0;
+    
+    // Poll with dynamic interval
+    const poll = () => {
+      pollingIntervalRef.current = setTimeout(async () => {
+        await checkForNewMessages();
+        
+        // Adjust polling rate based on activity
+        const timeSinceActivity = Date.now() - lastActivityTime.current;
+        if (timeSinceActivity > 30000) {
+          // No activity for 30 seconds, slow down polling
+          pollInterval.current = Math.min(pollInterval.current + 1000, 10000);
+        } else {
+          // Recent activity, keep it fast
+          pollInterval.current = 3000;
+        }
+        
+        // Continue polling if component is still mounted
+        if (pollingIntervalRef.current) {
+          poll();
+        }
+      }, pollInterval.current);
+    };
+    
+    poll();
   };
 
   const stopPolling = () => {
     if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
+      clearTimeout(pollingIntervalRef.current);
       pollingIntervalRef.current = null;
     }
   };
 
   const checkForNewMessages = async () => {
     try {
+      // Don't poll if app is in background
+      if (appState.current !== 'active') {
+        console.log('App not active, skipping poll');
+        return;
+      }
+
       // Fetch latest messages without showing loading indicator
       const response = await api.get(`/api/v1/chat/rooms/${roomId}/messages`, {
         params: {
@@ -327,6 +398,9 @@ export default function ChatRoomScreen() {
       });
       
       const latestMessages = response.data.messages || [];
+      
+      // Reset error count on successful fetch
+      errorCount.current = 0;
       
       if (latestMessages.length > 0) {
         const latestMessageId = latestMessages[latestMessages.length - 1].id;
@@ -340,6 +414,7 @@ export default function ChatRoomScreen() {
           
           if (newMessages.length > 0) {
             console.log('Found', newMessages.length, 'new messages');
+            lastActivityTime.current = Date.now(); // Update activity time
             
             // Use functional update to ensure we're working with latest state
             setMessages(prevMessages => {
@@ -351,12 +426,28 @@ export default function ChatRoomScreen() {
               if (uniqueNewMessages.length === 0) return prevMessages;
               
               // Show notifications for messages from other users
+              // Only show notification if:
+              // 1. Message is not from current user
+              // 2. App is in background or inactive
               uniqueNewMessages.forEach(msg => {
-                // Only notify if message is not from current user
-                if (msg.sender_id !== currentUserId) {
+                const isFromOtherUser = String(msg.sender_id) !== String(currentUserId);
+                const isAppInBackground = appState.current !== 'active';
+                
+                if (isFromOtherUser && isAppInBackground) {
+                  console.log('Showing notification for message:', msg.body?.substring(0, 50));
                   showMessageNotification(msg, eventTitle, eventId, roomId);
+                } else if (isFromOtherUser) {
+                  console.log('Message received while active - skipping notification');
                 }
               });
+              
+              // Update last read message when viewing chat (mark as read in real-time)
+              if (uniqueNewMessages.length > 0 && appState.current === 'active') {
+                const latestMsg = uniqueNewMessages[uniqueNewMessages.length - 1];
+                AsyncStorage.setItem(`CHAT_LAST_READ_${roomId}`, latestMsg.id)
+                  .catch(err => console.error('Failed to auto-mark as read:', err));
+                console.log('Auto-marked as read:', latestMsg.id);
+              }
               
               return [...prevMessages, ...uniqueNewMessages.reverse()];
             });
@@ -376,6 +467,18 @@ export default function ChatRoomScreen() {
     } catch (err) {
       // Silently fail for polling to avoid spamming user with errors
       console.error('Polling error:', err);
+      errorCount.current++;
+      
+      // Stop polling if too many consecutive errors (likely auth issue)
+      if (errorCount.current >= 5) {
+        console.error('Too many polling errors, stopping poll');
+        stopPolling();
+        
+        // Check if it's an auth error
+        if (err.response?.status === 401 || err.response?.status === 403) {
+          Alert.alert('Session Expired', 'Please log in again');
+        }
+      }
     }
   };
 

@@ -4,8 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
+
+const LAST_READ_KEY = 'CHAT_LAST_READ_';
+const UNREAD_COUNT_KEY = 'TOTAL_UNREAD_COUNT';
 
 export default function ChatListScreen() {
   const router = useRouter();
@@ -13,6 +17,7 @@ export default function ChatListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [chatRooms, setChatRooms] = useState([]);
   const [lastMessages, setLastMessages] = useState({});
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   useEffect(() => {
     fetchChatRooms();
@@ -77,6 +82,7 @@ export default function ChatListScreen() {
   const fetchLastMessages = async (rooms) => {
     try {
       const messagesMap = {};
+      const unreadMap = {};
       
       // Fetch last message for each room (limit 1)
       await Promise.all(
@@ -88,6 +94,36 @@ export default function ChatListScreen() {
             const messages = msgResponse.data.messages || [];
             if (messages.length > 0) {
               messagesMap[room.id] = messages[0];
+              
+              // Get last read message ID for this room
+              const lastReadId = await AsyncStorage.getItem(`${LAST_READ_KEY}${room.id}`);
+              
+              // Count unread messages (simple: if last message is newer than last read)
+              if (lastReadId) {
+                const lastMessageId = messages[0].id;
+                if (lastMessageId !== lastReadId) {
+                  // Fetch unread count by getting all messages since last read
+                  const unreadResponse = await api.get(`/api/v1/chat/rooms/${room.id}/messages`, {
+                    params: { page: 1, limit: 50 }
+                  });
+                  const allMessages = unreadResponse.data.messages || [];
+                  const lastReadIndex = allMessages.findIndex(msg => msg.id === lastReadId);
+                  
+                  if (lastReadIndex >= 0) {
+                    unreadMap[room.id] = lastReadIndex;
+                  } else if (allMessages.length > 0) {
+                    // Last read message not in recent 50, assume all are unread
+                    unreadMap[room.id] = allMessages.length;
+                  }
+                }
+              } else {
+                // No last read record, count all messages as unread
+                const unreadResponse = await api.get(`/api/v1/chat/rooms/${room.id}/messages`, {
+                  params: { page: 1, limit: 50 }
+                });
+                const allMessages = unreadResponse.data.messages || [];
+                unreadMap[room.id] = allMessages.length;
+              }
             }
           } catch (err) {
             console.error(`Failed to fetch messages for room ${room.id}:`, err);
@@ -96,6 +132,12 @@ export default function ChatListScreen() {
       );
       
       setLastMessages(messagesMap);
+      setUnreadCounts(unreadMap);
+      
+      // Calculate total unread count and save to AsyncStorage
+      const totalUnread = Object.values(unreadMap).reduce((sum, count) => sum + count, 0);
+      await AsyncStorage.setItem(UNREAD_COUNT_KEY, totalUnread.toString());
+      console.log('Total unread messages:', totalUnread);
       
       // Sort rooms by last message time
       sortRoomsByActivity(rooms, messagesMap);
@@ -131,6 +173,24 @@ export default function ChatListScreen() {
 
   const handleRoomPress = (room) => {
     console.log('Opening chat room:', room.id, 'Event:', room.event?.title);
+    
+    // Mark as read when opening (save last message ID)
+    const lastMessage = lastMessages[room.id];
+    if (lastMessage) {
+      AsyncStorage.setItem(`${LAST_READ_KEY}${room.id}`, lastMessage.id);
+      // Clear unread count for this room
+      setUnreadCounts(prev => {
+        const newCounts = {
+          ...prev,
+          [room.id]: 0
+        };
+        // Update total unread count
+        const totalUnread = Object.values(newCounts).reduce((sum, count) => sum + count, 0);
+        AsyncStorage.setItem(UNREAD_COUNT_KEY, totalUnread.toString());
+        return newCounts;
+      });
+    }
+    
     router.push({
       pathname: '/chat-room',
       params: { 
@@ -163,28 +223,42 @@ export default function ChatListScreen() {
 
   const renderChatRoom = ({ item }) => {
     const lastMessage = lastMessages[item.id];
+    const unreadCount = unreadCounts[item.id] || 0;
+    const hasUnread = unreadCount > 0;
     
     return (
       <TouchableOpacity 
-        style={styles.roomCard}
+        style={[styles.roomCard, hasUnread && styles.roomCardUnread]}
         onPress={() => handleRoomPress(item)}
         activeOpacity={0.7}
       >
         <View style={styles.roomIcon}>
           <Ionicons name="people" size={24} color={COLORS.redwine} />
+          {hasUnread && (
+            <View style={styles.unreadDot} />
+          )}
         </View>
         
         <View style={styles.roomContent}>
           <View style={styles.roomHeader}>
-            <Text style={styles.roomTitle} numberOfLines={1}>
+            <Text style={[styles.roomTitle, hasUnread && styles.roomTitleUnread]} numberOfLines={1}>
               {item.event?.title || 'Event Chat'}
             </Text>
-            <Text style={styles.roomTime}>
-              {lastMessage 
-                ? formatDate(lastMessage.created_at)
-                : formatDate(item.created_at)
-              }
-            </Text>
+            <View style={styles.headerRight}>
+              <Text style={[styles.roomTime, hasUnread && styles.roomTimeUnread]}>
+                {lastMessage 
+                  ? formatDate(lastMessage.created_at)
+                  : formatDate(item.created_at)
+                }
+              </Text>
+              {hasUnread && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
           
           <Text style={styles.roomLocation} numberOfLines={1}>
@@ -192,7 +266,7 @@ export default function ChatListScreen() {
           </Text>
           
           {lastMessage && (
-            <Text style={styles.lastMessage} numberOfLines={1}>
+            <Text style={[styles.lastMessage, hasUnread && styles.lastMessageUnread]} numberOfLines={1}>
               {lastMessage.sender?.full_name || 'Someone'}: {lastMessage.body || 'Message'}
             </Text>
           )}
@@ -315,6 +389,11 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
+  roomCardUnread: {
+    backgroundColor: '#fff9f9',
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.redwine,
+  },
   roomIcon: {
     width: 48,
     height: 48,
@@ -323,6 +402,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    position: 'relative',
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: COLORS.redwine,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   roomContent: {
     flex: 1,
@@ -333,6 +424,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   roomTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -340,9 +436,31 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 8,
   },
+  roomTitleUnread: {
+    fontWeight: '700',
+    color: '#1a1a1a',
+  },
   roomTime: {
     fontSize: 12,
     color: COLORS.textLight,
+  },
+  roomTimeUnread: {
+    color: COLORS.redwine,
+    fontWeight: '600',
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: COLORS.redwine,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   roomLocation: {
     fontSize: 14,
@@ -354,6 +472,10 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     marginBottom: 6,
     fontStyle: 'italic',
+  },
+  lastMessageUnread: {
+    color: '#333',
+    fontWeight: '500',
   },
   roomFooter: {
     flexDirection: 'row',
