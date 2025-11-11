@@ -448,13 +448,66 @@ export default function ChatRoomScreen() {
     const previousMsg = index > 0 ? messages[index - 1] : null;
     const showDateHeader = shouldShowDateHeader(item, previousMsg);
     
-    // Debug log
-    // if (index === 0) {
-    //   console.log('Message sender_id:', item.sender_id, 'Type:', typeof item.sender_id);
-    //   console.log('Current user ID:', currentUserId, 'Type:', typeof currentUserId);
-    //   console.log('Is current user?', isCurrentUser);
-    // }
+    // Check if it's a system message (join, leave, confirm)
+    const isSystemMessage = item.message_type === 'join' || 
+                           item.message_type === 'leave' || 
+                           item.message_type === 'confirm' ||
+                           item.message_type === 'system';
 
+    // Debug log
+    if (index === 0) {
+      console.log('Message sender_id:', item.sender_id, 'Type:', typeof item.sender_id);
+      console.log('Current user ID:', currentUserId, 'Type:', typeof currentUserId);
+      console.log('Is current user?', isCurrentUser);
+    }
+
+    // Render system message
+    if (isSystemMessage) {
+      const senderName = item.sender?.display_name || item.sender?.full_name || item.sender?.name || 'Someone';
+      let systemText = '';
+      
+      switch (item.message_type) {
+        case 'join':
+          systemText = `${senderName} joined the event`;
+          break;
+        case 'leave':
+          systemText = `${senderName} left the event`;
+          break;
+        case 'confirm':
+          systemText = `${senderName} confirmed participation`;
+          break;
+        default:
+          systemText = item.body || 'System message';
+      }
+
+      return (
+        <View>
+          {showDateHeader && (
+            <View style={styles.dateHeaderContainer}>
+              <Text style={styles.dateHeaderText}>
+                {formatDateHeader(item.created_at)}
+              </Text>
+            </View>
+          )}
+          
+          <View style={styles.systemMessageContainer}>
+            <View style={styles.systemMessageBubble}>
+              <Ionicons 
+                name={item.message_type === 'join' ? 'person-add' : 
+                      item.message_type === 'leave' ? 'person-remove' : 
+                      item.message_type === 'confirm' ? 'checkmark-circle' : 'information-circle'} 
+                size={14} 
+                color={COLORS.textLight} 
+                style={styles.systemMessageIcon}
+              />
+              <Text style={styles.systemMessageText}>{systemText}</Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    // Render normal message
     return (
       <View>
         {showDateHeader && (
@@ -811,6 +864,28 @@ const styles = StyleSheet.create({
   },
   messageTimeRight: {
     color: COLORS.textLight,
+  },
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+    paddingHorizontal: 16,
+  },
+  systemMessageBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+  },
+  systemMessageIcon: {
+    marginRight: 2,
+  },
+  systemMessageText: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    fontStyle: 'italic',
   },
   inputContainer: {
     backgroundColor: '#fff',

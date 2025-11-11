@@ -235,7 +235,15 @@ export default function CreateEventScreen() {
       Alert.alert('Validation Error', 'Please enter a location');
       return false;
     }
-    if (startDate && endDate && endDate < startDate) {
+    if (!startDate) {
+      Alert.alert('Validation Error', 'Please select a start date and time');
+      return false;
+    }
+    if (!endDate) {
+      Alert.alert('Validation Error', 'Please select an end date and time');
+      return false;
+    }
+    if (endDate < startDate) {
       Alert.alert('Validation Error', 'End date must be after start date');
       return false;
     }

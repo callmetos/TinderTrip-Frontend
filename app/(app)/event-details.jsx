@@ -291,7 +291,7 @@ export default function EventDetailsScreen() {
       </View>
 
       {/* Floating Header - Fixed Position */}
-        <SafeAreaView style={styles.fixedFloatingHeader} edges={['top']}>
+        <SafeAreaView style={styles.fixedFloatingHeader} edges={['']}>
         <TouchableOpacity 
           onPress={handleGoBack} 
           style={styles.floatingButton}
@@ -489,29 +489,12 @@ export default function EventDetailsScreen() {
             );
           }
 
-          // 4) Joined but not confirmed => show Chat + Confirm (ตามที่ผู้ใช้ต้องการ)
+          // 4) Joined (pending or confirmed) => show Chat only
           return (
-            <View style={styles.buttonRow}>
-              <TouchableOpacity style={styles.chatButtonHalf} onPress={handleOpenChat}>
-                <Ionicons name="chatbubble" size={20} color="#fff" />
-                <Text style={styles.chatButtonText}>Chat</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.confirmButtonHalf, joining && styles.joinButtonDisabled]}
-                onPress={handleConfirmAttendance}
-                disabled={joining}
-              >
-                {joining ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-done" size={20} color="#fff" />
-                    <Text style={styles.confirmButtonText}>Confirm</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
+              <Ionicons name="chatbubble" size={22} color="#fff" />
+              <Text style={styles.chatButtonText}>Chat</Text>
+            </TouchableOpacity>
           );
         })()}
       </View>
