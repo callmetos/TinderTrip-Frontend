@@ -29,6 +29,7 @@ export default function EventDetailsScreen() {
   const [joining, setJoining] = useState(false);
   const [authToken, setAuthToken] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserName, setCurrentUserName] = useState(null);
 
   useEffect(() => {
     loadAuthToken();
@@ -67,6 +68,7 @@ export default function EventDetailsScreen() {
       if (userStr) {
         const user = JSON.parse(userStr);
         setCurrentUserId(user.id);
+        setCurrentUserName(user.display_name || user.email || 'Someone');
       }
     } catch (err) {
       console.error('Failed to load user:', err);
@@ -105,6 +107,25 @@ export default function EventDetailsScreen() {
     try {
       setJoining(true);
       await api.post(`/api/v1/events/${id}/join`);
+      
+      // Send notification message to chat
+      try {
+        const roomsResponse = await api.get('/api/v1/chat/rooms');
+        const rooms = roomsResponse.data?.rooms || [];
+        const eventRoom = rooms.find(room => room.event_id === id);
+        
+        if (eventRoom) {
+          const notificationMessage = `${currentUserName} has joined the event! 🎉`;
+          await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
+            message: notificationMessage,
+            message_type: 'system'
+          });
+        }
+      } catch (chatErr) {
+        console.error('Failed to send chat notification:', chatErr);
+        // Don't block the join process if chat notification fails
+      }
+      
       Alert.alert('Success', 'You have joined this event!');
       fetchEventDetails(); // Refresh to update join status
     } catch (err) {
@@ -140,6 +161,25 @@ export default function EventDetailsScreen() {
     try {
       setJoining(true);
       await api.post(`/api/v1/events/${id}/confirm`);
+      
+      // Send notification message to chat
+      try {
+        const roomsResponse = await api.get('/api/v1/chat/rooms');
+        const rooms = roomsResponse.data?.rooms || [];
+        const eventRoom = rooms.find(room => room.event_id === id);
+        
+        if (eventRoom) {
+          const notificationMessage = `${currentUserName} confirmed their attendance! ✅`;
+          await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
+            message: notificationMessage,
+            message_type: 'system'
+          });
+        }
+      } catch (chatErr) {
+        console.error('Failed to send chat notification:', chatErr);
+        // Don't block the confirm process if chat notification fails
+      }
+      
       Alert.alert('Success', 'You confirmed your attendance!');
       fetchEventDetails(); // Refresh to update status
     } catch (err) {
@@ -770,8 +810,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 20,
-    paddingTop: 14,
-    paddingBottom: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     elevation: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -782,13 +822,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: 16,
+    backgroundColor: COLORS.redwine,
+    paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 20,
     gap: 10,
     elevation: 5,
-    shadowColor: COLORS.primary,
+    shadowColor: COLORS.redwine,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
@@ -808,7 +848,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.redwine,
-    paddingVertical: 16,
+    paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 20,
     gap: 10,
@@ -835,7 +875,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: COLORS.redwine,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 20,
     gap: 8,
     elevation: 4,
@@ -850,7 +890,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#24953eff',
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 20,
     gap: 8,
     elevation: 4,

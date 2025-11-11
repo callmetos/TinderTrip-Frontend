@@ -62,12 +62,27 @@ export default function RootLayout() {
   }, []);
 
   // Apply global default font once loaded
-  if (fontsLoaded) {
-    if (!RNText.defaultProps) RNText.defaultProps = {};
-    RNText.defaultProps.style = [RNText.defaultProps.style, { fontFamily: 'Prompt_400Regular' }];
-    if (!RNTextInput.defaultProps) RNTextInput.defaultProps = {};
-    RNTextInput.defaultProps.style = [RNTextInput.defaultProps.style, { fontFamily: 'Prompt_400Regular' }];
-  }
+  useEffect(() => {
+    if (fontsLoaded) {
+      // Set default props for Text
+      const TextRender = RNText.render;
+      const TextInputRender = RNTextInput.render;
+      
+      RNText.render = function (props, ref) {
+        return TextRender.call(this, {
+          ...props,
+          style: [{ fontFamily: 'Prompt_400Regular' }, props.style]
+        }, ref);
+      };
+
+      RNTextInput.render = function (props, ref) {
+        return TextInputRender.call(this, {
+          ...props,
+          style: [{ fontFamily: 'Prompt_400Regular' }, props.style]
+        }, ref);
+      };
+    }
+  }, [fontsLoaded]);
 
   if (!fontsLoaded) {
     return (

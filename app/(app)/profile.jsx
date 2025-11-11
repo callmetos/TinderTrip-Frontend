@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS } from '@/color/colors';
+import { COLORS, FONTS } from '@/color/colors';
 import { useAuth } from '../../src/contexts/AuthContext.js';
 import { getUserStats } from '../../src/api/user.service.js';
 import { getUserProfile, updateUserProfile } from '../../src/api/info.service.js';
@@ -362,17 +362,18 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 32,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: '#fff',
   },
   displayName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: '#333',
     marginBottom: 4,
   },
   email: {
     fontSize: 14,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     marginBottom: 16,
   },
@@ -388,7 +389,7 @@ const styles = StyleSheet.create({
   },
   editButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
     color: COLORS.redwine,
   },
   statsContainer: {
@@ -403,12 +404,13 @@ const styles = StyleSheet.create({
   },
   statNumber: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontFamily: FONTS.bold,
     color: '#333',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
     textAlign: 'center',
   },
@@ -441,12 +443,13 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
     color: '#333',
     marginBottom: 2,
   },
   menuSubtitle: {
     fontSize: 13,
+    fontFamily: FONTS.regular,
     color: COLORS.textLight,
   },
   logoutButton: {
@@ -463,7 +466,7 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FONTS.semiBold,
     color: '#e74c3c',
   },
 });
