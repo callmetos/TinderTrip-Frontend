@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  AppState,
   PanResponder
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -45,8 +44,6 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef(null);
   const pollingIntervalRef = useRef(null);
   const lastMessageIdRef = useRef(null);
-  const appState = useRef(AppState.currentState);
-  const [isAppInForeground, setIsAppInForeground] = useState(true);
   const notificationListener = useRef(null);
   const responseListener = useRef(null);
   const panResponder = useRef(null);
@@ -104,24 +101,7 @@ export default function ChatRoomScreen() {
       clearBadgeCount();
     });
     
-    // Listen to app state changes (foreground/background)
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      const wasInBackground = appState.current.match(/inactive|background/);
-      const isNowActive = nextAppState === 'active';
-      
-      appState.current = nextAppState;
-      setIsAppInForeground(isNowActive);
-      
-      if (wasInBackground && isNowActive) {
-        // App came to foreground, refresh messages and clear badge
-        console.log('App came to foreground, refreshing messages');
-        clearBadgeCount();
-        if (roomId) fetchMessages();
-      }
-    });
-    
     return () => {
-      subscription.remove();
       if (responseListener.current) {
         responseListener.current.remove();
       }
@@ -329,8 +309,8 @@ export default function ChatRoomScreen() {
               
               // Show notifications for messages from other users
               uniqueNewMessages.forEach(msg => {
-                // Only notify if message is not from current user and app is in background
-                if (msg.sender_id !== currentUserId && !isAppInForeground) {
+                // Only notify if message is not from current user
+                if (msg.sender_id !== currentUserId) {
                   showMessageNotification(msg, eventTitle, eventId, roomId);
                 }
               });
@@ -476,6 +456,10 @@ export default function ChatRoomScreen() {
         case 'confirm':
           systemText = `${senderName} confirmed participation`;
           break;
+        case 'system':
+          // Use the message body directly for system messages
+          systemText = item.body || item.message || 'System message';
+          break;
         default:
           systemText = item.body || 'System message';
       }
@@ -565,7 +549,7 @@ export default function ChatRoomScreen() {
 
   return (
     <View style={{ flex: 1 }} {...(panResponder.current ? panResponder.current.panHandlers : {})}>
-    <SafeAreaView style={styles.container} edges={[]}>
+    <SafeAreaView style={styles.container} edges={['']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 

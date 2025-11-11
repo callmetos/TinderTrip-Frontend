@@ -10,9 +10,10 @@ import * as ImagePicker from 'expo-image-picker';
 import { styles } from '../../assets/styles/info-styles.js';
 import { COLORS } from '../../color/colors.js';
 import { setAuthToken } from '../../src/api/client.js';
-import { updateUserProfile } from '../../src/api/info.service.js';
+import { getUserProfile, updateUserProfile } from '../../src/api/info.service.js';
 import ProtectedRoute from '../../src/components/ProtectedRoute.jsx';
 import { loadToken } from '../../src/lib/storage.js';
+import { fetchAuthenticatedImage } from '../../src/utils/imageLoader.js';
 
 
 const normalize = (value) =>
@@ -87,12 +88,12 @@ const WebDateInput = ({ value, onChange }) => {
           background: "transparent",
           fontSize: 16,
           color: value ? "#222" : "#999",
-          padding: "0 36px 0 14px", // เผื่อที่ให้ไอคอน
+          padding: "0 36px 0 14px", // Space for the icon
           boxSizing: "border-box",
           cursor: "pointer",
         }}
       />
-      {/* ไอคอนปฏิทินวางทับขวา */}
+      {/* Calendar icon overlayed on the right */}
       <div style={{ position: "absolute", right: 12, top: 12, pointerEvents: "none" }}>
         <Ionicons name="calendar-outline" size={20} color="#999" />
       </div>
@@ -134,6 +135,7 @@ export default function InformationScreen() {
   const [smoking, setSmoking] = useState(""); 
   const [interests, setInterests] = useState("");
   const [avatarUri, setAvatarUri] = useState(null);
+  const [avatarBase64, setAvatarBase64] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
@@ -199,6 +201,13 @@ export default function InformationScreen() {
           setJobTitle(parsedUser.job_title ?? "");
           setSmoking(toBackendSmoking(parsedUser.smoking));
           setInterests(parsedUser.interests_note ?? "");
+          
+          // Load avatar with authentication if URL exists
+          if (parsedUser.avatar_url) {
+            const avatarUrlWithCache = `${parsedUser.avatar_url}?t=${Date.now()}`;
+            const base64Image = await fetchAuthenticatedImage(avatarUrlWithCache);
+            setAvatarBase64(base64Image);
+          }
         } else {
           console.log("No user data found in storage");
         }
@@ -279,37 +288,61 @@ export default function InformationScreen() {
       const response = await updateUserProfile(payload);
       console.log("Profile update response:", response);
 
-      // Preserve existing fields like email when updating USER_DATA
-      const existingRaw = await AsyncStorage.getItem("USER_DATA");
-      const existing = existingRaw ? JSON.parse(existingRaw) : {};
+      // Fetch fresh user profile from backend after update
+      try {
+        const fresh = await getUserProfile();
+        
+        if (fresh && fresh.data) {
+          const userData = fresh.data;
+          
+          // Preserve existing fields like email when updating USER_DATA
+          const existingRaw = await AsyncStorage.getItem("USER_DATA");
+          const existing = existingRaw ? JSON.parse(existingRaw) : {};
+          
+          const mergedUser = {
+            ...existing,
+            ...userData,
+            // Ensure email is preserved from existing if not in fresh data
+            email: userData.email || existing.email,
+          };
+          
+          setUser(mergedUser);
+          await AsyncStorage.setItem("USER_DATA", JSON.stringify(mergedUser));
+          
+          // Clear local avatar URI and load fresh avatar from backend
+          setAvatarUri(null);
+          if (userData.avatar_url) {
+            const avatarUrlWithCache = `${userData.avatar_url}?t=${Date.now()}`;
+            const base64Image = await fetchAuthenticatedImage(avatarUrlWithCache);
+            setAvatarBase64(base64Image);
+          }
+        }
+      } catch (err) {
+        console.error('[Information] Failed to fetch fresh profile:', err);
+        // Fallback to manual merge if fetch fails
+        const existingRaw = await AsyncStorage.getItem("USER_DATA");
+        const existing = existingRaw ? JSON.parse(existingRaw) : {};
 
-      const mergedUser = { ...existing, ...(user || {}), ...payload };
-      if (displayNameToSend) {
-        mergedUser.display_name = displayNameToSend;
+        const mergedUser = { ...existing, ...(user || {}), ...payload };
+        if (displayNameToSend) {
+          mergedUser.display_name = displayNameToSend;
+        }
+        if (!mergedUser.email && existing?.email) {
+          mergedUser.email = existing.email;
+        }
+        setUser(mergedUser);
+        await AsyncStorage.setItem("USER_DATA", JSON.stringify(mergedUser));
       }
-      if (!mergedUser.email && existing?.email) {
-        mergedUser.email = existing.email;
-      }
-      setUser(mergedUser);
-      await AsyncStorage.setItem("USER_DATA", JSON.stringify(mergedUser));
 
       setSubmitSuccess("Profile updated successfully!");
       scrollRef.current?.scrollTo({ y: 0, animated: true });
 
-      // Auto-dismiss success message after 2 seconds
-      setTimeout(() => {
-        setSubmitSuccess(null);
-      }, 2000);
-
       // Auto navigate back after success in edit mode
       if (isEdit) {
         setTimeout(() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.push("/profile");
-          }
-        }, 800);
+          // Use replace to force refresh the profile page
+          router.replace("/profile");
+        }, 500);
       } else {
         // First time setup - go to home
         setTimeout(() => {
@@ -332,7 +365,8 @@ export default function InformationScreen() {
   };
 
   const displayName = user?.display_name || name || user?.email?.split('@')[0] || 'User';
-  const avatarSource = avatarUri || user?.photo_url || user?.imageUrl || user?.avatar_url;
+  // Use base64 avatar if available, otherwise fallback to local URI or URL
+  const avatarSource = avatarBase64 || avatarUri || user?.avatar_url || user?.photo_url || user?.imageUrl;
 
   const handleAvatarPress = async () => {
     try {
@@ -352,10 +386,14 @@ export default function InformationScreen() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        allowsCircularCrop: true, // Show circular crop frame on iOS
       });
 
       if (!result.canceled && result.assets[0]) {
-        setAvatarUri(result.assets[0].uri);
+        const newAvatarUri = result.assets[0].uri;
+        // Show local image immediately
+        setAvatarUri(newAvatarUri);
+        setAvatarBase64(newAvatarUri);
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -458,7 +496,7 @@ export default function InformationScreen() {
 
             {/* Header */}
             <View style={{
-              backgroundColor: COLORS.primary,
+              backgroundColor: COLORS.redwine,
               paddingVertical: 24,
               paddingHorizontal: 20,
               marginBottom: 30,

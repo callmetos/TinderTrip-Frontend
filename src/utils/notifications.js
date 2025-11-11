@@ -363,3 +363,34 @@ export function addNotificationReceivedListener(callback) {
   return Notifications.addNotificationReceivedListener(callback);
 }
 
+/**
+ * Schedule a test notification (for testing purposes)
+ */
+export async function scheduleTestNotification() {
+  try {
+    const settings = await getNotificationSettings();
+    
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '🎉 Test Notification',
+        body: 'This is a test notification from TinderTrip! If you can see this, notifications are working correctly.',
+        sound: settings.sound ? 'default' : null,
+        data: {
+          type: 'test',
+          timestamp: Date.now(),
+        },
+      },
+      trigger: {
+        seconds: 2, // Show after 2 seconds
+      },
+    });
+    
+    // Increment badge count
+    await incrementBadgeCount();
+    
+    console.log('Test notification scheduled');
+  } catch (error) {
+    console.error('Error scheduling test notification:', error);
+    throw error;
+  }
+}

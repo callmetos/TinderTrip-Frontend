@@ -18,6 +18,7 @@ import {
   clearBadgeCount,
   cancelAllNotifications,
   requestNotificationPermissions,
+  scheduleTestNotification,
 } from '../../src/utils/notifications';
 
 export default function NotificationSettingsScreen() {
@@ -94,10 +95,29 @@ export default function NotificationSettingsScreen() {
     );
   };
 
-  const renderSettingItem = (title, description, key, icon) => (
-    <View style={styles.settingItem}>
+  const handleTestNotification = async () => {
+    try {
+      // Request permissions first
+      const hasPermission = await requestNotificationPermissions();
+      
+      if (!hasPermission) {
+        Alert.alert('Permission Required', 'Please enable notifications in your device settings');
+        return;
+      }
+
+      // Schedule a test notification
+      await scheduleTestNotification();
+      Alert.alert('Success', 'Test notification scheduled! You should receive it in a few seconds.');
+    } catch (error) {
+      console.error('Test notification error:', error);
+      Alert.alert('Error', 'Failed to send test notification');
+    }
+  };
+
+  const renderSettingItem = (title, description, key, icon, isLast = false) => (
+    <View style={[styles.settingItem, isLast && { borderBottomWidth: 0 }]}>
       <View style={styles.iconContainer}>
-        <Ionicons name={icon} size={24} color={COLORS.redwine} />
+        <Ionicons name={icon} size={24} color={COLORS.primary} />
       </View>
       <View style={styles.settingContent}>
         <Text style={styles.settingTitle}>{title}</Text>
@@ -106,118 +126,136 @@ export default function NotificationSettingsScreen() {
       <Switch
         value={settings[key]}
         onValueChange={() => handleToggle(key)}
-        trackColor={{ false: '#e0e0e0', true: COLORS.redwine + '80' }}
-        thumbColor={settings[key] ? COLORS.redwine : '#f4f3f4'}
+        trackColor={{ false: '#e0e0e0', true: COLORS.primary + '50' }}
+        thumbColor={settings[key] ? COLORS.primary : '#f4f3f4'}
+        ios_backgroundColor="#e0e0e0"
       />
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
+    <SafeAreaView style={styles.container} edges={['']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Notification Settings</Text>
+        <Text style={styles.headerTitle}>Notifications</Text>
         <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Notification Types */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Types</Text>
-          
-          {renderSettingItem(
-            'Chat Messages',
-            'Get notified when someone sends a message',
-            'chatMessages',
-            'chatbubble'
-          )}
-          
-          {renderSettingItem(
-            'Event Updates',
-            'Notifications about events you joined',
-            'eventUpdates',
-            'calendar'
-          )}
-          
-          {renderSettingItem(
-            'Join Requests',
-            'When someone wants to join your event',
-            'joinRequests',
-            'person-add'
-          )}
-          
-          {renderSettingItem(
-            'Event Reminders',
-            'Remind me before events start',
-            'eventReminders',
-            'alarm'
-          )}
+          <Text style={styles.sectionTitle}>NOTIFICATION TYPES</Text>
+          <View style={styles.card}>
+            {renderSettingItem(
+              'Chat Messages',
+              'Get notified when someone sends a message',
+              'chatMessages',
+              'chatbubble'
+            )}
+            
+            {renderSettingItem(
+              'Event Updates',
+              'Notifications about events you joined',
+              'eventUpdates',
+              'calendar'
+            )}
+            
+            {renderSettingItem(
+              'Join Requests',
+              'When someone wants to join your event',
+              'joinRequests',
+              'person-add'
+            )}
+            
+            {renderSettingItem(
+              'Event Reminders',
+              'Remind me before events start',
+              'eventReminders',
+              'alarm',
+              true
+            )}
+          </View>
         </View>
 
         {/* Notification Behavior */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notification Behavior</Text>
-          
-          {renderSettingItem(
-            'Sound',
-            'Play sound for notifications',
-            'sound',
-            'volume-high'
-          )}
-          
-          {renderSettingItem(
-            'Vibration',
-            'Vibrate on new notifications',
-            'vibration',
-            'phone-portrait'
-          )}
+          <Text style={styles.sectionTitle}>BEHAVIOR</Text>
+          <View style={styles.card}>
+            {renderSettingItem(
+              'Sound',
+              'Play sound for notifications',
+              'sound',
+              'volume-high'
+            )}
+            
+            {renderSettingItem(
+              'Vibration',
+              'Vibrate on new notifications',
+              'vibration',
+              'phone-portrait',
+              true
+            )}
+          </View>
         </View>
 
         {/* Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Actions</Text>
-          
-          <TouchableOpacity style={styles.actionButton} onPress={handleClearBadge}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="notifications-off" size={24} color="#FF9800" />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={styles.actionTitle}>Clear Badge Count</Text>
-              <Text style={styles.actionDescription}>
-                Reset the notification badge on app icon
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={handleClearAllNotifications}
-          >
-            <View style={styles.iconContainer}>
-              <Ionicons name="trash" size={24} color="#e74c3c" />
-            </View>
-            <View style={styles.actionContent}>
-              <Text style={[styles.actionTitle, { color: '#e74c3c' }]}>
-                Clear All Notifications
-              </Text>
-              <Text style={styles.actionDescription}>
-                Cancel all scheduled notifications
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
-          </TouchableOpacity>
+          <Text style={styles.sectionTitle}>ACTIONS</Text>
+          <View style={styles.card}>
+            <TouchableOpacity style={styles.actionButton} onPress={handleTestNotification}>
+              <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+                <Ionicons name="flask" size={24} color="#2196F3" />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Test Notification</Text>
+                <Text style={styles.actionDescription}>
+                  Send a test notification to your device
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionButton} onPress={handleClearBadge}>
+              <View style={[styles.iconContainer, { backgroundColor: '#FFF3E0' }]}>
+                <Ionicons name="notifications-off" size={24} color="#FF9800" />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={styles.actionTitle}>Clear Badge Count</Text>
+                <Text style={styles.actionDescription}>
+                  Reset the notification badge on app icon
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={[styles.actionButton, { borderBottomWidth: 0 }]}
+              onPress={handleClearAllNotifications}
+            >
+              <View style={[styles.iconContainer, { backgroundColor: '#FFEBEE' }]}>
+                <Ionicons name="trash" size={24} color="#e74c3c" />
+              </View>
+              <View style={styles.actionContent}>
+                <Text style={[styles.actionTitle, { color: '#e74c3c' }]}>
+                  Clear All Notifications
+                </Text>
+                <Text style={styles.actionDescription}>
+                  Cancel all scheduled notifications
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#ccc" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Info */}
         <View style={styles.infoBox}>
-          <Ionicons name="information-circle" size={20} color={COLORS.textLight} />
+          <Ionicons name="information-circle" size={20} color={COLORS.primary} />
           <Text style={styles.infoText}>
-            Notifications help you stay updated with your trips and messages. You can
-            customize which notifications you want to receive.
+            Customize which notifications you want to receive. You can change these settings anytime.
           </Text>
         </View>
 
@@ -237,7 +275,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 60,
+    paddingBottom: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
@@ -246,8 +285,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: '#333',
   },
   placeholder: {
@@ -258,32 +297,39 @@ const styles = StyleSheet.create({
   },
   section: {
     marginTop: 24,
-    backgroundColor: '#fff',
-    paddingVertical: 8,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
     color: COLORS.textLight,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    backgroundColor: COLORS.background,
+    letterSpacing: 1,
+    marginBottom: 12,
+    paddingLeft: 4,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   settingItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -295,17 +341,18 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   settingDescription: {
     fontSize: 13,
     color: COLORS.textLight,
+    lineHeight: 18,
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f5f5f5',
   },
@@ -316,25 +363,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   actionDescription: {
     fontSize: 13,
     color: COLORS.textLight,
+    lineHeight: 18,
   },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: COLORS.primary + '10',
     padding: 16,
     marginHorizontal: 16,
     marginTop: 24,
-    borderRadius: 12,
+    borderRadius: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
     gap: 12,
   },
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: COLORS.textLight,
-    lineHeight: 18,
+    color: '#666',
+    lineHeight: 20,
   },
 });

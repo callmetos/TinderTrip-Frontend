@@ -17,23 +17,27 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
 import { COLORS } from '@/color/colors';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
 export default function EventDetailsScreen() {
   const router = useRouter();
   const { id, from } = useLocalSearchParams();
+  const { user } = useAuth(); // Get user from AuthContext
   
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [authToken, setAuthToken] = useState(null);
-  const [currentUserId, setCurrentUserId] = useState(null);
-  const [currentUserName, setCurrentUserName] = useState(null);
+  const [memberUsers, setMemberUsers] = useState({});
+
+  // Get current user from AuthContext
+  const currentUserId = user?.id;
+  const currentUserName = user?.display_name || user?.email || 'Someone';
 
   useEffect(() => {
     loadAuthToken();
-    loadCurrentUser();
   }, []);
 
   useEffect(() => {
@@ -53,25 +57,9 @@ export default function EventDetailsScreen() {
     try {
       const token = await AsyncStorage.getItem('TOKEN');
       setAuthToken(token);
+      console.log('Current user from AuthContext:', { id: user?.id, name: user?.display_name });
     } catch (err) {
       console.error('Failed to load auth token:', err);
-    }
-  };
-
-  const loadCurrentUser = async () => {
-    try {
-      let userStr = await AsyncStorage.getItem('USER_DATA');
-      if (!userStr) {
-        userStr = await AsyncStorage.getItem('user');
-      }
-      
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        setCurrentUserId(user.id);
-        setCurrentUserName(user.display_name || user.email || 'Someone');
-      }
-    } catch (err) {
-      console.error('Failed to load user:', err);
     }
   };
 
@@ -92,14 +80,48 @@ export default function EventDetailsScreen() {
       const res = await api.get(`/api/v1/events/${id}`);
       const eventData = res?.data?.data || res?.data;
       console.log('Event data:', eventData);
-      console.log('start_at:', eventData?.start_at);
       setEvent(eventData);
+      
+      // Fetch user data for each member (including creator)
+      if (eventData?.members && eventData.members.length > 0) {
+        await fetchMemberUsers(eventData, eventData.members);
+      } else {
+        // Still try to fetch creator data even if no members
+        const organizer = eventData?.created_by || eventData?.creator || eventData?.organizer || eventData?.owner;
+        if (organizer?.id) {
+          await fetchMemberUsers(eventData, [{ user_id: organizer.id }]);
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch event details', err);
       Alert.alert('Error', 'Failed to load event details');
       handleGoBack();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMemberUsers = async (eventData, members) => {
+    try {
+      const usersMap = {};
+      
+      // Use member data directly from the members array
+      // The API already provides avatar_url and display_name in the members array
+      members.forEach(member => {
+        usersMap[member.user_id] = {
+          id: member.user_id,
+          display_name: member.display_name,
+          avatar_url: member.avatar_url,
+          role: member.role,
+          status: member.status,
+          joined_at: member.joined_at
+        };
+      });
+      
+      console.log('Fetched member users:', usersMap);
+      setMemberUsers(usersMap);
+    } catch (err) {
+      console.error('Failed to fetch member users:', err);
     }
   };
 
@@ -115,7 +137,7 @@ export default function EventDetailsScreen() {
         const eventRoom = rooms.find(room => room.event_id === id);
         
         if (eventRoom) {
-          const notificationMessage = `${currentUserName} has joined the event! 🎉`;
+          const notificationMessage = `${currentUserName} joined group`;
           await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
             message: notificationMessage,
             message_type: 'system'
@@ -169,7 +191,7 @@ export default function EventDetailsScreen() {
         const eventRoom = rooms.find(room => room.event_id === id);
         
         if (eventRoom) {
-          const notificationMessage = `${currentUserName} confirmed their attendance! ✅`;
+          const notificationMessage = `${currentUserName} will go`;
           await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
             message: notificationMessage,
             message_type: 'system'
@@ -269,7 +291,7 @@ export default function EventDetailsScreen() {
     0;
 
   return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
       {/* Fixed Cover Image - Behind Everything */}
       <View style={styles.fixedCoverSection}>
         {event.cover_image_url ? (
@@ -305,98 +327,114 @@ export default function EventDetailsScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {/* Spacer for cover image */}
-          <View style={{ height: width * 0.75 - 60 }} />
+        <View style={{ height: width * 0.75 - 60 }} />
         
         {/* Content */}
         <View style={styles.content}>
           {/* Title Section */}
           <View style={styles.titleSection}>
-              <Text style={styles.title}>{event.title}</Text>
+            <Text style={styles.title}>{event.title}</Text>
             
             {/* Event Type Badge */}
             {event.event_type && (
               <View style={styles.badge}>
-                <Ionicons name="pricetag" size={12} color={COLORS.redwine} />
+                <Ionicons name="pricetag" size={12} color="#fff" />
                 <Text style={styles.badgeText}>{event.event_type}</Text>
-                </View>
+              </View>
+            )}
+
+            {/* Description - Plain text below title */}
+            {event.description && (
+              <Text style={styles.descriptionText}>{event.description}</Text>
             )}
           </View>
 
-          <View style={styles.statsGrid}>
+          {/* Quick Info Cards - More Prominent */}
+          <View style={styles.quickInfoSection}>
+            {/* Date & Time Card */}
+            {event.start_at && (
+              <View style={styles.quickInfoCard}>
+                <View style={styles.quickInfoIcon}>
+                  <Ionicons name="calendar" size={24} color={COLORS.redwine} />
+                </View>
+                <View style={styles.quickInfoContent}>
+                  <Text style={styles.quickInfoLabel}>When</Text>
+                  <Text style={styles.quickInfoValue}>
+                    {(() => {
+                      const d = new Date(event.start_at);
+                      const day = d.getDate();
+                      const month = d.toLocaleString('en-US', { month: 'short' });
+                      const year = d.getFullYear();
+                      const time = d.toLocaleTimeString('en-US', { 
+                        hour: 'numeric', 
+                        minute: '2-digit',
+                        hour12: true 
+                      });
+                      return `${day} ${month} ${year}`;
+                    })()}
+                  </Text>
+                  <Text style={styles.quickInfoTime}>
+                    {new Date(event.start_at).toLocaleTimeString('en-US', { 
+                      hour: 'numeric', 
+                      minute: '2-digit',
+                      hour12: true 
+                    })}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Location Card */}
+            {event.address_text && (
+              <View style={styles.quickInfoCard}>
+                <View style={styles.quickInfoIcon}>
+                  <Ionicons name="location" size={24} color={COLORS.redwine} />
+                </View>
+                <View style={styles.quickInfoContent}>
+                  <Text style={styles.quickInfoLabel}>Where</Text>
+                  <Text style={styles.quickInfoValue} numberOfLines={2}>
+                    {event.address_text}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Attendees Card */}
             {capacity != null && (
-              <View style={styles.statCard}>
-                <View style={styles.statIconWrapper}>
+              <View style={styles.quickInfoCard}>
+                <View style={styles.quickInfoIcon}>
                   <Ionicons name="people" size={24} color={COLORS.redwine} />
                 </View>
-                <Text style={styles.statValue}>{joined}/{capacity}</Text>
-                <Text style={styles.statLabel}>Attendees</Text>
+                <View style={styles.quickInfoContent}>
+                  <Text style={styles.quickInfoLabel}>Attendees</Text>
+                  <Text style={styles.quickInfoValue}>
+                    {joined}/{capacity} people
+                  </Text>
+                  <Text style={styles.quickInfoSubtext}>
+                    {capacity - joined} spots left
+                  </Text>
+                </View>
               </View>
             )}
-            
+
+            {/* Budget Card */}
             {(event.budget_min != null || event.budget_max != null) && (
-              <View style={styles.statCard}>
-                <View style={styles.statIconWrapper}>
+              <View style={styles.quickInfoCard}>
+                <View style={styles.quickInfoIcon}>
                   <Ionicons name="wallet" size={24} color="#4CAF50" />
                 </View>
-                <Text style={styles.statValue}>
-                  {event.budget_min && event.budget_max
-                    ? `฿${event.budget_min}-${event.budget_max}`
-                    : event.budget_max
-                    ? `฿${event.budget_max}`
-                    : 'Free'}
-                </Text>
-                <Text style={styles.statLabel}>Budget</Text>
-              </View>
-            )}
-            
-            {event.start_at && (
-              <View style={styles.statCard}>
-                <View style={styles.statIconWrapper}>
-                  <Ionicons name="calendar" size={24} color="#FF9800" />
+                <View style={styles.quickInfoContent}>
+                  <Text style={styles.quickInfoLabel}>Budget</Text>
+                  <Text style={styles.quickInfoValue}>
+                    {event.budget_min && event.budget_max
+                      ? `฿${event.budget_min}-${event.budget_max}`
+                      : event.budget_max
+                      ? `฿${event.budget_max}`
+                      : 'Free'}
+                  </Text>
                 </View>
-                <Text style={styles.statValue}>
-                  {new Date(event.start_at).getDate()}
-                </Text>
-                <Text style={styles.statLabel}>
-                  {new Date(event.start_at).toLocaleDateString('en-US', { month: 'short' })}
-                </Text>
               </View>
             )}
-          </View>
-
-          {/* Description */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>About this event</Text>
-            <Text style={styles.description}>{event.description || 'No description provided'}</Text>
-          </View>
-
-          {/* Location */}
-          <View style={styles.section}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconWrapper}>
-                <Ionicons name="location" size={24} color={COLORS.redwine} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Location</Text>
-                <Text style={styles.infoText}>{event.address_text || 'Location TBD'}</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Date & Time */}
-          <View style={styles.section}>
-            <View style={styles.infoCard}>
-              <View style={styles.infoIconWrapper}>
-                <Ionicons name="time" size={24} color="#FF9800" />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>When</Text>
-                <Text style={styles.infoText}>{formatDate(event.start_at)}</Text>
-                {event.end_at && (
-                  <Text style={styles.infoTextSecondary}>Until {formatDate(event.end_at)}</Text>
-                )}
-              </View>
-            </View>
           </View>
 
           {/* Tags */}
@@ -414,25 +452,194 @@ export default function EventDetailsScreen() {
           )}
 
           {/* Organizer Info */}
-          {event.created_by && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Hosted by</Text>
-              <View style={styles.organizerCard}>
-                <View style={styles.avatarCircle}>
-                  <Ionicons name="person" size={28} color={COLORS.redwine} />
+          {(() => {
+            const organizer = event.created_by || event.creator || event.organizer || event.owner;
+            if (!organizer) return null;
+            
+            // Get user data from memberUsers map (same as members below)
+            const userData = memberUsers[organizer.id];
+            const user = userData || organizer;
+            
+            const organizerAvatar = 
+              userData?.avatar_url || 
+              userData?.profile_image_url || 
+              userData?.image_url ||
+              organizer.avatar_url || 
+              organizer.profile_image_url || 
+              organizer.image_url;
+            
+            const organizerName = 
+              userData?.display_name || 
+              userData?.full_name || 
+              userData?.name ||
+              organizer.display_name || 
+              organizer.full_name || 
+              organizer.name ||
+              organizer.email || 
+              'Anonymous';
+            
+            return (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Hosted by</Text>
+                <View style={styles.organizerCard}>
+                  <View style={styles.avatarCircle}>
+                    {organizerAvatar ? (
+                      <Image
+                        source={{ 
+                          uri: organizerAvatar,
+                          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+                        }}
+                        style={styles.organizerAvatarImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <Ionicons name="person" size={28} color={COLORS.redwine} />
+                    )}
+                  </View>
+                  <View style={styles.organizerInfo}>
+                    <Text style={styles.organizerName}>
+                      {organizerName}
+                    </Text>
+                    <Text style={styles.organizerRole}>Event Organizer</Text>
+                  </View>
+                  <TouchableOpacity style={styles.messageButton}>
+                    <Ionicons name="chatbubble-outline" size={20} color={COLORS.redwine} />
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.organizerInfo}>
-                  <Text style={styles.organizerName}>
-                    {event.created_by.display_name || event.created_by.email || 'Anonymous'}
-                  </Text>
-                  <Text style={styles.organizerRole}>Event Organizer</Text>
-                </View>
-                <TouchableOpacity style={styles.messageButton}>
-                  <Ionicons name="chatbubble-outline" size={20} color={COLORS.redwine} />
-                </TouchableOpacity>
               </View>
-            </View>
-          )}
+            );
+          })()}
+
+          {/* Members List */}
+          {(() => {
+            const members = event.members || event.participants || event.attendees || [];
+            if (members.length === 0) return null;
+            
+            const confirmedMembers = members.filter(m => 
+              (m.status || m.attendance_status) === 'confirmed'
+            );
+            const capacity = event?.capacity ?? event?.max_capacity ?? 0;
+            const spotsLeft = capacity - confirmedMembers.length;
+            
+            // Show only first 7 members (6 members + 1 "Add Friends" button)
+            const displayMembers = members.slice(0, 7);
+            
+            return (
+              <View style={styles.section}>
+                <View style={styles.membersHeader}>
+                  <Text style={styles.sectionTitle}>
+                    {confirmedMembers.length}/{capacity} Will go • {spotsLeft} spots left
+                  </Text>
+                  {members.length > 7 && (
+                    <TouchableOpacity>
+                      <Text style={styles.seeAllButton}>See All</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                
+                <View style={styles.membersGrid}>
+                  {/* Add Friends Button */}
+                  <View style={styles.memberGridItem}>
+                    <TouchableOpacity style={styles.addFriendsButton}>
+                      <Ionicons name="add" size={32} color="#00BCD4" />
+                    </TouchableOpacity>
+                    <Text style={styles.memberGridName}>Add{'\n'}Friends</Text>
+                  </View>
+                  
+                  {/* Member Items */}
+                  {displayMembers.map((member, index) => {
+                    // Get user data from fetched users map
+                    const userData = memberUsers[member.user_id];
+                    const user = userData || member.user || member;
+                    const status = member.status || member.attendance_status || 'interested';
+                    
+                    // Try to get name from multiple possible fields
+                    const displayName = 
+                      userData?.display_name || 
+                      userData?.full_name || 
+                      userData?.name ||
+                      userData?.email?.split('@')[0] ||
+                      member.display_name || 
+                      member.full_name || 
+                      member.name ||
+                      user.display_name || 
+                      user.full_name || 
+                      user.name ||
+                      user.email?.split('@')[0] || 
+                      member.email?.split('@')[0] ||
+                      `User ${index + 1}`;
+                    
+                    // Try to get avatar from multiple possible fields
+                    const avatarUrl = 
+                      userData?.avatar_url || 
+                      userData?.profile_image_url || 
+                      userData?.image_url ||
+                      member.avatar_url || 
+                      member.profile_image_url || 
+                      member.image_url ||
+                      user.avatar_url || 
+                      user.profile_image_url ||
+                      user.image_url;
+                    
+                    const isConfirmed = status === 'confirmed';
+                    
+                    // Split name to max 2 lines
+                    const nameParts = displayName.split(' ');
+                    const firstName = nameParts[0];
+                    const lastName = nameParts.slice(1).join(' ');
+                    const displayText = lastName ? `${firstName}\n${lastName}` : firstName;
+                    
+                    console.log('Member:', index, 'User ID:', member.user_id, 'Name:', displayName, 'Status:', status, 'Avatar:', avatarUrl);
+                    
+                    return (
+                      <View key={member.id || member.user_id || index} style={styles.memberGridItem}>
+                        <View style={styles.memberGridAvatar}>
+                          {avatarUrl ? (
+                            <Image
+                              source={{ 
+                                uri: avatarUrl,
+                                headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+                              }}
+                              style={styles.memberGridAvatarImage}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={styles.memberGridAvatarPlaceholder}>
+                              <Ionicons name="person" size={28} color="#ccc" />
+                            </View>
+                          )}
+                          {/* Status Icon Badge */}
+                          <View style={[
+                            styles.memberStatusIcon,
+                            isConfirmed ? styles.statusIconConfirmed : styles.statusIconInterested
+                          ]}>
+                            <Text style={styles.statusIconEmoji}>
+                              {isConfirmed ? '⭐' : '🔥'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text 
+                          style={[
+                            styles.memberGridName,
+                            isConfirmed ? styles.memberNameConfirmed : styles.memberNameInterested
+                          ]} 
+                          numberOfLines={2}
+                        >
+                          {displayText}
+                        </Text>
+                        <Text style={[
+                          styles.memberGridStatus,
+                          isConfirmed ? styles.statusConfirmedText : styles.statusInterestedText
+                        ]}>
+                          {isConfirmed ? 'Will go' : 'Interested'}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })()}
           
           {/* Add some bottom padding */}
           <View style={{ height: 100 }} />
@@ -444,33 +651,22 @@ export default function EventDetailsScreen() {
         {/* Check user status and show appropriate buttons */}
         {(() => {
           const isCreator = currentUserId === event?.creator_id;
-          const member = event?.members?.find(m => m.user_id === currentUserId);
-          const membershipStatus = member?.status || event?.member_status || (event?.is_confirmed ? 'confirmed' : null);
-          const hasJoined = Boolean(event?.is_joined || member);
-          const hasConfirmed = membershipStatus === 'confirmed' || Boolean(event?.is_confirmed);
+          const member = event?.members?.find(m => String(m.user_id) === String(currentUserId));
+          const membershipStatus = member?.status || event?.member_status;
+          const hasJoined = Boolean(member || event?.is_joined);
 
-          // 1) Creator => Chat only
-          if (isCreator) {
-            return (
-              <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
-                <Ionicons name="chatbubble" size={22} color="#fff" />
-                <Text style={styles.chatButtonText}>Chat</Text>
-              </TouchableOpacity>
-            );
-          }
+          console.log('Bottom bar debug:', { 
+            currentUserId: String(currentUserId),
+            isCreator, 
+            member, 
+            membershipStatus, 
+            hasJoined,
+            allMembers: event?.members?.map(m => ({ id: String(m.user_id), status: m.status }))
+          });
 
-          // 2) Confirmed member => Chat only
-          if (hasConfirmed) {
-            return (
-              <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
-                <Ionicons name="chatbubble" size={22} color="#fff" />
-                <Text style={styles.chatButtonText}>Chat</Text>
-              </TouchableOpacity>
-            );
-          }
-
-          // 3) Not joined at all => Join button
+          // 1) Not joined at all => Join button
           if (!hasJoined) {
+            console.log('Showing JOIN button - user has not joined');
             return (
               <TouchableOpacity
                 style={[styles.joinButton, joining && styles.joinButtonDisabled]}
@@ -489,7 +685,8 @@ export default function EventDetailsScreen() {
             );
           }
 
-          // 4) Joined (pending or confirmed) => show Chat only
+          // 2) Joined (pending, confirmed, or creator) => Chat button
+          console.log('Showing CHAT button - user has joined with status:', membershipStatus);
           return (
             <TouchableOpacity style={styles.chatButton} onPress={handleOpenChat}>
               <Ionicons name="chatbubble" size={22} color="#fff" />
@@ -498,7 +695,7 @@ export default function EventDetailsScreen() {
           );
         })()}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -600,16 +797,22 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     letterSpacing: -0.5,
   },
+  descriptionText: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: COLORS.textLight,
+    marginTop: 8,
+  },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.redwine,
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     gap: 6,
-    shadowColor: COLORS.primary,
+    shadowColor: COLORS.redwine,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -621,6 +824,60 @@ const styles = StyleSheet.create({
     color: '#fff',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  quickInfoSection: {
+    marginBottom: 24,
+    gap: 12,
+  },
+  quickInfoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'flex-start',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.04)',
+  },
+  quickInfoIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  quickInfoContent: {
+    flex: 1,
+  },
+  quickInfoLabel: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    fontWeight: '600',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  quickInfoValue: {
+    fontSize: 16,
+    color: COLORS.text,
+    fontWeight: '600',
+    lineHeight: 22,
+  },
+  quickInfoTime: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginTop: 2,
+  },
+  quickInfoSubtext: {
+    fontSize: 13,
+    color: COLORS.textLight,
+    marginTop: 2,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -766,6 +1023,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+  },
+  organizerAvatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
   },
   organizerInfo: {
     flex: 1,
@@ -907,6 +1170,164 @@ const styles = StyleSheet.create({
   backButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  membersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  seeAllButton: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#00BCD4',
+  },
+  membersGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+  },
+  memberGridItem: {
+    width: '22%',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  addFriendsButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#00BCD4',
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  memberGridAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginBottom: 6,
+    position: 'relative',
+  },
+  memberGridAvatarImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+  },
+  memberGridAvatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  memberStatusIcon: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  statusIconConfirmed: {
+    backgroundColor: '#FFD700',
+  },
+  statusIconInterested: {
+    backgroundColor: '#FF6B6B',
+  },
+  statusIconEmoji: {
+    fontSize: 12,
+  },
+  memberGridName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 2,
+  },
+  memberNameConfirmed: {
+    color: '#333',
+  },
+  memberNameInterested: {
+    color: '#333',
+  },
+  memberGridStatus: {
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  statusConfirmedText: {
+    color: '#4CAF50',
+  },
+  statusInterestedText: {
+    color: '#FF9800',
+  },
+  membersContainer: {
+    gap: 12,
+  },
+  memberCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 14,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+  },
+  memberAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFE5E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+  memberAvatarImage: {
+    width: 48,
+    height: 48,
+  },
+  memberInfo: {
+    flex: 1,
+  },
+  memberName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1a1a1a',
+    marginBottom: 6,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statusConfirmed: {
+    backgroundColor: '#E8F5E9',
+  },
+  statusInterested: {
+    backgroundColor: '#FFF3E0',
+  },
+  statusText: {
+    fontSize: 11,
     fontWeight: '600',
   },
 });

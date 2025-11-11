@@ -231,7 +231,7 @@ export default function ChatListScreen() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Messages</Text>
         </View>

@@ -12,6 +12,7 @@ import { getUserStats } from '../../src/api/user.service.js';
 import { getUserProfile, updateUserProfile } from '../../src/api/info.service.js';
 import { api, setAuthToken } from '../../src/api/client.js';
 import { loadToken } from '../../src/lib/storage.js';
+import { fetchAuthenticatedImage } from '../../src/utils/imageLoader.js';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [localUser, setLocalUser] = useState(null);
+  const [avatarBase64, setAvatarBase64] = useState(null);
   const [stats, setStats] = useState({
     events_joined: 0,
     events_liked: 0,
@@ -45,7 +47,7 @@ export default function ProfileScreen() {
     React.useCallback(() => {
       if (isAuthenticated) {
         fetchUserStats();
-        loadLocalUser();
+        fetchAndSyncUserProfile(); // Fetch from backend to get latest avatar
       }
     }, [isAuthenticated])
   );
@@ -56,6 +58,14 @@ export default function ProfileScreen() {
       if (raw) {
         const parsed = JSON.parse(raw);
         setLocalUser(parsed);
+        
+        // Load avatar with authentication if URL exists
+        if (parsed.avatar_url) {
+          // Add timestamp to force refresh and bypass cache
+          const avatarUrlWithCache = `${parsed.avatar_url}?t=${Date.now()}`;
+          const base64Image = await fetchAuthenticatedImage(avatarUrlWithCache);
+          setAvatarBase64(base64Image);
+        }
       }
     } catch (error) {
       console.error('Failed to load local user:', error);
@@ -75,7 +85,6 @@ export default function ProfileScreen() {
   const fetchAndSyncUserProfile = async () => {
     try {
       const fresh = await getUserProfile();
-      console.log('[Profile] Fetched user profile:', fresh);
       
       if (fresh && fresh.data) {
         // API returns { data: { user object }, success: true, ... }
@@ -94,6 +103,14 @@ export default function ProfileScreen() {
         
         await AsyncStorage.setItem('USER_DATA', JSON.stringify(mergedUser));
         setLocalUser(mergedUser);
+        
+        // Fetch avatar with authentication if URL exists
+        if (userData.avatar_url) {
+          // Add timestamp to force refresh and bypass cache
+          const avatarUrlWithCache = `${userData.avatar_url}?t=${Date.now()}`;
+          const base64Image = await fetchAuthenticatedImage(avatarUrlWithCache);
+          setAvatarBase64(base64Image);
+        }
       }
     } catch (error) {
       console.error('Failed to refresh user profile:', error);
@@ -142,15 +159,16 @@ export default function ProfileScreen() {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        allowsCircularCrop: true, // Show circular crop frame on iOS
       });
 
       if (!result.canceled && result.assets[0]) {
         const newAvatarUri = result.assets[0].uri;
-        // Update local state immediately
-        const updatedUser = { ...localUser, avatar_url: newAvatarUri };
-        setLocalUser(updatedUser);
-        await AsyncStorage.setItem('USER_DATA', JSON.stringify(updatedUser));
-        // Update on server
+        
+        // Show local image immediately for better UX
+        setAvatarBase64(newAvatarUri);
+        
+        // Update on server first
         try {
           const token = await loadToken();
           if (token) {
@@ -160,15 +178,27 @@ export default function ProfileScreen() {
             const name = result.assets[0].fileName || 'avatar.jpg';
             const type = result.assets[0].mimeType || 'image/jpeg';
             formData.append('file', { uri: newAvatarUri, name, type });
+            
             await api.put('/api/v1/users/profile', formData, {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
-            // ดึงข้อมูลใหม่จาก backend เพื่อ sync
+            console.log('[Profile] Avatar uploaded successfully');
+            
+            // Fetch fresh data from backend to sync (this will update localUser with backend URL)
             await fetchAndSyncUserProfile();
+            
+            Alert.alert('Success', 'Profile picture updated successfully!');
           }
         } catch (error) {
-          console.error('Failed to update avatar on server:', error);
-          // Keep local change even if server update fails
+          console.error('[Profile] Failed to update avatar on server:', error);
+          Alert.alert('Error', 'Failed to update profile picture on server. Please try again.');
+          // Reset to previous avatar on error
+          if (localUser?.avatar_url) {
+            const base64 = await fetchAuthenticatedImage(localUser.avatar_url);
+            setAvatarBase64(base64);
+          } else {
+            setAvatarBase64(null);
+          }
         }
       }
     } catch (error) {
@@ -178,12 +208,6 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
-    {
-      icon: 'person-outline',
-      title: 'Edit Profile',
-      subtitle: 'Update your personal information',
-      onPress: handleEditProfile,
-    },
     {
       icon: 'settings-outline',
       title: 'Preferences',
@@ -212,12 +236,13 @@ export default function ProfileScreen() {
 
   const displayName = localUser?.display_name || localUser?.email?.split('@')[0] || user?.display_name || user?.email?.split('@')[0] || 'Guest';
   const email = localUser?.email || user?.email || '';
-  const avatarUrl = localUser?.avatar_url || user?.avatar_url || user?.photo_url || user?.imageUrl || null;
+  // Use base64 avatar if available, otherwise fallback to URL (for local files)
+  const avatarUrl = avatarBase64 || localUser?.avatar_url || user?.avatar_url || user?.photo_url || user?.imageUrl || null;
 
   return (
     <View style={styles.wrapper}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-      <SafeAreaView style={styles.container} edges={[]}>
+      <SafeAreaView style={styles.container} edges={['']}>
         <ScrollView
           refreshControl={
             <RefreshControl
@@ -244,7 +269,18 @@ export default function ProfileScreen() {
         <View style={styles.header}>
           <TouchableOpacity style={styles.avatarContainer} onPress={handleAvatarPress} activeOpacity={0.8}>
             {avatarUrl ? (
-              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              <>
+                <Image 
+                  source={{ uri: avatarUrl }} 
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+                {!avatarBase64 && (
+                  <View style={[styles.avatarImage, { position: 'absolute', justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)' }]}>
+                    <ActivityIndicator size="small" color="#fff" />
+                  </View>
+                )}
+              </>
             ) : (
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
@@ -334,6 +370,7 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     padding: 20,
+    paddingTop: 60, // Add extra padding for status bar area
     backgroundColor: '#fff',
     marginBottom: 16,
   },
@@ -353,6 +390,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
+    backgroundColor: '#f0f0f0', // Add background to see if image is rendering
   },
   avatarEditButton: {
     position: 'absolute',

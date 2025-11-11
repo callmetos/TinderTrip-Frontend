@@ -65,9 +65,14 @@ const Card = memo(({ event, onPress, authToken }) => {
           </View>
         )}
         
-        <Text style={styles.cardAddress} numberOfLines={1}>
-          📍 {event?.address_text}
-        </Text>
+        {event?.address_text && (
+          <View style={styles.cardMetaRow}>
+            <Ionicons name="location-outline" size={16} color={COLORS.textLight} />
+            <Text style={styles.cardMetaText} numberOfLines={1}>
+              {event.address_text}
+            </Text>
+          </View>
+        )}
 
         {(capacity != null || joined != null) && (
           <View style={styles.cardMetaRow}>
@@ -510,17 +515,20 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     width: '100%',
     height: 420,
+    flexDirection: 'column',
   },
   cardImage: {
     width: '100%',
-    height: 260,
+    height: 220,
+    flexShrink: 0,
   },
   placeholderImage: {
     width: '100%',
-    height: 260,
+    height: 220,
     backgroundColor: '#f3f3f3',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   placeholderText: {
     color: '#999',
@@ -528,31 +536,29 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     padding: 16,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 6,
     color: '#333',
   },
   cardDescription: {
     color: '#666',
-    marginBottom: 10,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  cardAddress: {
-    color: COLORS.textLight,
+    marginBottom: 8,
     fontSize: 13,
+    lineHeight: 18,
   },
   cardMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
+    marginTop: 4,
   },
   cardMetaText: {
     color: COLORS.textLight,
-    fontSize: 13,
+    fontSize: 12,
     marginLeft: 6,
     flexShrink: 1,
   },
