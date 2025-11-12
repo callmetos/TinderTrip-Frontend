@@ -4,7 +4,8 @@ import FONTS from '../src/constants/fonts';
 
 const coffeeTheme = {
   primary: "#8B593E",
-  background: "#FFF8F3",
+  // background: "#FFF8F3",
+  background: "#fff7f0e7",
   text: "#4A3428",
   border: "#E5D3B7",
   white: "#FFFFFF",

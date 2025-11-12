@@ -911,7 +911,7 @@ export default function ChatRoomScreen() {
             </View>
 
             {/* Only show button if not creator and not already joined */}
-            {!eventData.is_joined && currentUserId !== eventData.creator_id && (() => {
+            {!eventData.is_joined && String(currentUserId) !== String(eventData.creator_id) && (() => {
               const confirmedCount = eventData.members?.filter(m => m.status === 'confirmed').length || eventData.member_count || 0;
               const capacity = eventData.capacity || 0;
               const isFull = confirmedCount >= capacity;
@@ -937,11 +937,11 @@ export default function ChatRoomScreen() {
             })()}
 
             {/* Show confirmed status */}
-            {(eventData.is_joined || currentUserId === eventData.creator_id) && (
+            {(eventData.is_joined || String(currentUserId) === String(eventData.creator_id)) && (
               <View style={styles.confirmedBadge}>
                 <Ionicons name="checkmark-circle" size={20} color={COLORS.redwine} />
                 <Text style={styles.confirmedText}>
-                  {currentUserId === eventData.creator_id ? "You're Creator" : "You're will going"}
+                  {String(currentUserId) === String(eventData.creator_id) ? "You're Creator" : "You're will going"}
                 </Text>
               </View>
             )}

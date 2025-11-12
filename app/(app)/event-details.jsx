@@ -144,7 +144,8 @@ export default function EventDetailsScreen() {
         if (eventRoom) {
           const notificationMessage = `${currentUserName} joined group`;
           await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
-            message: notificationMessage,
+            room_id: eventRoom.id,
+            body: notificationMessage,
             message_type: 'system'
           });
         }
@@ -198,7 +199,8 @@ export default function EventDetailsScreen() {
         if (eventRoom) {
           const notificationMessage = `${currentUserName} will go`;
           await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
-            message: notificationMessage,
+            room_id: eventRoom.id,
+            body: notificationMessage,
             message_type: 'system'
           });
         }

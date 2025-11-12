@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, RefreshControl, Modal, Animated, Easing } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../../src/api/client.js';
@@ -15,6 +15,7 @@ const UNREAD_COUNT_KEY = 'TOTAL_UNREAD_COUNT';
 
 export default function ChatListScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { user } = useAuth(); // Get current user
   const [loading, setLoading] = useState(false); // Start as false to avoid loading screen
   const [refreshing, setRefreshing] = useState(false);
@@ -213,13 +214,32 @@ export default function ChatListScreen() {
       });
     }
     
+    // Hide tab bar
+    navigation.setOptions({
+      tabBarStyle: { display: 'none' }
+    });
+    
     // Open as modal overlay instead of navigation
     setSelectedRoom(room);
     setChatModalVisible(true);
   };
 
   const handleCloseModal = () => {
+    // Show tab bar again
+    navigation.setOptions({
+      tabBarStyle: {
+        backgroundColor: '#fff',
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
+        paddingBottom: 20,
+        paddingTop: 8,
+        height: 80,
+        display: 'flex',
+      }
+    });
+    
     setChatModalVisible(false);
+    setSelectedRoom(null); // Reset selected room
     // Refresh chat rooms when modal closes
     fetchChatRooms(false);
   };

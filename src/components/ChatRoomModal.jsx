@@ -20,6 +20,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
+import { useRouter } from 'expo-router';
 import { api } from '../api/client.js';
 import { COLORS } from '@/color/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -29,6 +30,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ChatRoomModal({ visible, onClose, roomId, eventId: propEventId, eventTitle: propEventTitle }) {
   const { user } = useAuth();
+  const router = useRouter();
   
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -65,10 +67,14 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
     if (visible && roomId) {
       if (user?.id) {
         setCurrentUserId(user.id);
+        console.log('ChatRoomModal - Current user ID:', user.id);
       }
       fetchMessages();
       if (eventId) {
+        console.log('ChatRoomModal - Fetching event data for eventId:', eventId);
         fetchEventData();
+      } else {
+        console.log('ChatRoomModal - No eventId available');
       }
     }
   }, [visible, roomId, eventId, user]);
@@ -129,6 +135,28 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
     });
   };
 
+  // Handle info button press - navigate to event details
+  const handleInfoPress = () => {
+    if (eventId) {
+      console.log('Navigating to event-details from ChatRoomModal with id:', eventId);
+      // Close modal first
+      handleClose();
+      // Small delay to ensure modal is closed before navigation
+      setTimeout(() => {
+        router.push({
+          pathname: '/event-details',
+          params: {
+            id: eventId,
+            from: 'messages'
+          }
+        });
+      }, 350); // Match animation duration
+    } else {
+      console.warn('eventId is undefined, cannot navigate to event-details');
+      Alert.alert('Error', 'Event information not available');
+    }
+  };
+
   const fetchMessages = async () => {
     try {
       setLoading(true);
@@ -151,11 +179,49 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
 
   const fetchEventData = async () => {
     try {
+      console.log('ChatRoomModal - Fetching event details for eventId:', eventId);
       const response = await api.get(`/api/v1/events/${eventId}`);
       const data = response.data?.data || response.data;
       setEventData(data);
+      console.log('ChatRoomModal - Event data loaded:', {
+        title: data.title,
+        creator_id: data.creator_id,
+        is_joined: data.is_joined,
+        member_count: data.member_count,
+        capacity: data.capacity,
+        members: data.members?.length
+      });
+      console.log('ChatRoomModal - currentUserId:', currentUserId);
     } catch (err) {
       console.error('Failed to fetch event:', err);
+    }
+  };
+
+  const handleConfirmAttendance = async () => {
+    if (!eventId || confirming) return;
+    
+    try {
+      setConfirming(true);
+      console.log('Confirming attendance for event:', eventId);
+      
+      await api.post(`/api/v1/events/${eventId}/confirm`);
+      
+      // Refresh event data to get updated member count
+      await fetchEventData();
+      
+      Alert.alert('Success', 'You confirmed your attendance!');
+    } catch (err) {
+      console.error('Failed to confirm attendance:', err);
+      
+      // Handle 409 conflict (already confirmed) gracefully
+      if (err.response?.status === 409) {
+        Alert.alert('Info', 'You have already confirmed this event');
+        await fetchEventData(); // Refresh to show current status
+      } else {
+        Alert.alert('Error', err.response?.data?.error || 'Failed to confirm attendance');
+      }
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -287,10 +353,80 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
                   <Text style={styles.headerSubtitle}>Event Chat</Text>
                 </View>
 
-                <TouchableOpacity style={styles.headerButton}>
+                <TouchableOpacity 
+                  style={styles.headerButton}
+                  onPress={handleInfoPress}
+                >
                   <Ionicons name="information-circle-outline" size={24} color="#333" />
                 </TouchableOpacity>
               </View>
+
+              {/* Event Confirmation Header */}
+              {eventData && (
+                <View style={styles.confirmationHeader}>
+                  <View style={styles.confirmationContent}>
+                    <Text style={styles.confirmationTitle}>Will you go?</Text>
+                    
+                    <View style={styles.memberStats}>
+                      <Ionicons name="people" size={16} color={COLORS.textLight} />
+                      <Text style={styles.memberStatsText}>
+                        {(() => {
+                          // Calculate confirmed members from members array
+                          const confirmedCount = eventData.members?.filter(m => m.status === 'confirmed').length || eventData.member_count || 0;
+                          const capacity = eventData.capacity || 0;
+                          
+                          return `${confirmedCount}/${capacity} Will go`;
+                        })()}
+                      </Text>
+                      <Text style={styles.spotsLeft}>
+                        {(() => {
+                          const confirmedCount = eventData.members?.filter(m => m.status === 'confirmed').length || eventData.member_count || 0;
+                          const capacity = eventData.capacity || 0;
+                          const spotsLeft = Math.max(0, capacity - confirmedCount);
+                          
+                          return spotsLeft === 0 ? '• Full' : `• ${spotsLeft} spots left`;
+                        })()}
+                      </Text>
+                    </View>
+
+                    {/* Only show button if not creator and not already joined */}
+                    {!eventData.is_joined && String(currentUserId) !== String(eventData.creator_id) && (() => {
+                      const confirmedCount = eventData.members?.filter(m => m.status === 'confirmed').length || eventData.member_count || 0;
+                      const capacity = eventData.capacity || 0;
+                      const isFull = confirmedCount >= capacity;
+                      
+                      return (
+                        <TouchableOpacity 
+                          style={[
+                            styles.confirmButton, 
+                            (confirming || isFull) && styles.confirmButtonDisabled
+                          ]}
+                          onPress={handleConfirmAttendance}
+                          disabled={confirming || isFull}
+                        >
+                          {confirming ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.confirmButtonText}>
+                              {isFull ? 'Full' : "I'll going"}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })()}
+
+                    {/* Show confirmed status */}
+                    {(eventData.is_joined || String(currentUserId) === String(eventData.creator_id)) && (
+                      <View style={styles.confirmedBadge}>
+                        <Ionicons name="checkmark-circle" size={20} color={COLORS.redwine} />
+                        <Text style={styles.confirmedText}>
+                          {String(currentUserId) === String(eventData.creator_id) ? "You're Creator" : "You're will going"}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
 
               {/* Messages List */}
               <View style={styles.chatContainer}>
@@ -397,6 +533,67 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     marginLeft: 12,
+  },
+  confirmationHeader: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  confirmationContent: {
+    alignItems: 'center',
+  },
+  confirmationTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  memberStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  memberStatsText: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginLeft: 6,
+  },
+  spotsLeft: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginLeft: 4,
+  },
+  confirmButton: {
+    backgroundColor: COLORS.redwine,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    minWidth: 160,
+    alignItems: 'center',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#999',
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  confirmedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 8,
+  },
+  confirmedText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.redwine,
   },
   chatContainer: {
     flex: 1,

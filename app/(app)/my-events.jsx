@@ -126,6 +126,7 @@ export default function MyEventsScreen() {
           pathname: '/chat-room',
           params: { 
             roomId: eventRoom.id,
+            eventId: event.id,
             eventTitle: event.title,
             from: 'my-events'
           }
