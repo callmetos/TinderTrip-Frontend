@@ -46,6 +46,7 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
   const lastMessageIdRef = useRef(null);
   const translateX = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(SCREEN_WIDTH)).current;
+  const pollingIntervalRef = useRef(null);
 
   // Slide in/out animation when modal visibility changes
   useEffect(() => {
@@ -78,6 +79,27 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
       }
     }
   }, [visible, roomId, eventId, user]);
+
+  // Real-time message polling (every 2 seconds)
+  useEffect(() => {
+    if (visible && roomId) {
+      console.log('🔄 Starting message polling...');
+      
+      // Poll every 2 seconds for new messages
+      pollingIntervalRef.current = setInterval(() => {
+        fetchMessagesQuietly();
+      }, 2000);
+
+      return () => {
+        // Cleanup: stop polling when modal closes
+        if (pollingIntervalRef.current) {
+          console.log('⏹️ Stopping message polling');
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      };
+    }
+  }, [visible, roomId]);
 
   // Handle swipe gesture
   const onGestureEvent = Animated.event(
@@ -174,6 +196,59 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
       console.error('Failed to fetch messages:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch messages quietly (for polling - no loading indicator)
+  const fetchMessagesQuietly = async () => {
+    try {
+      const response = await api.get(`/api/v1/chat/rooms/${roomId}/messages`, {
+        params: { page: 1, limit: 50 }
+      });
+      
+      const newMessages = response.data.messages || [];
+      const reversedMessages = newMessages.reverse();
+      
+      // Smart update: only update if there are actual new messages
+      setMessages(prevMessages => {
+        const prevLength = prevMessages.length;
+        const newLength = reversedMessages.length;
+        
+        // Check if there are new messages
+        if (newLength > prevLength) {
+          const newCount = newLength - prevLength;
+          console.log(`📨 ${newCount} new message(s) received`);
+          
+          // Auto-scroll to bottom when new messages arrive
+          setTimeout(() => {
+            flatListRef.current?.scrollToEnd({ animated: true });
+          }, 100);
+          
+          return reversedMessages;
+        }
+        
+        // Check if latest message changed (edited/deleted)
+        if (newLength > 0 && prevLength > 0) {
+          const latestNew = reversedMessages[newLength - 1];
+          const latestPrev = prevMessages[prevLength - 1];
+          
+          if (latestNew?.id !== latestPrev?.id || 
+              latestNew?.body !== latestPrev?.body) {
+            console.log('✏️ Message updated');
+            return reversedMessages;
+          }
+        }
+        
+        // No changes, return previous state
+        return prevMessages;
+      });
+      
+      if (reversedMessages.length > 0) {
+        lastMessageIdRef.current = reversedMessages[reversedMessages.length - 1].id;
+      }
+    } catch (err) {
+      // Fail silently for polling
+      console.error('Polling error:', err.message);
     }
   };
 

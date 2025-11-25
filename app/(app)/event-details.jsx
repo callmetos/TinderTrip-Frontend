@@ -173,18 +173,6 @@ export default function EventDetailsScreen() {
     }
   };
 
-  const handleLikeEvent = async () => {
-    try {
-      await api.post(`/api/v1/events/${id}/swipe`, {
-        event_id: id,
-        direction: 'like',
-      });
-      Alert.alert('Liked', 'Event added to your liked list!');
-    } catch (err) {
-      console.error('Failed to like event', err);
-    }
-  };
-
   const handleConfirmAttendance = async () => {
     try {
       setJoining(true);
@@ -326,9 +314,6 @@ export default function EventDetailsScreen() {
           style={styles.floatingButton}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleLikeEvent} style={styles.floatingButton}>
-          <Ionicons name="heart-outline" size={24} color="#fff" />
         </TouchableOpacity>
         </SafeAreaView>
 
