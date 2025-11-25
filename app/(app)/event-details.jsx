@@ -146,7 +146,7 @@ export default function EventDetailsScreen() {
           await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
             room_id: eventRoom.id,
             body: notificationMessage,
-            message_type: 'system'
+            message_type: 'text'
           });
         }
       } catch (chatErr) {
@@ -189,7 +189,7 @@ export default function EventDetailsScreen() {
           await api.post(`/api/v1/chat/rooms/${eventRoom.id}/messages`, {
             room_id: eventRoom.id,
             body: notificationMessage,
-            message_type: 'system'
+            message_type: 'text'
           });
         }
       } catch (chatErr) {
@@ -510,11 +510,14 @@ export default function EventDetailsScreen() {
             const confirmedMembers = members.filter(m => 
               (m.status || m.attendance_status) === 'confirmed'
             );
+            const interestedMembers = members.filter(m => 
+              (m.status || m.attendance_status) !== 'confirmed'
+            );
             const capacity = event?.capacity ?? event?.max_capacity ?? 0;
             const spotsLeft = capacity - confirmedMembers.length;
             
-            // Show only first 7 members (6 members + 1 "Add Friends" button)
-            const displayMembers = members.slice(0, 7);
+            // Show confirmed members first, then interested members (max 7 total)
+            const displayMembers = [...confirmedMembers, ...interestedMembers].slice(0, 7);
             
             return (
               <View style={styles.section}>
@@ -1178,10 +1181,11 @@ const styles = StyleSheet.create({
   membersGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    justifyContent: 'flex-start',
+    gap: 12,
   },
   memberGridItem: {
-    width: '22%',
+    width: '22.5%',
     alignItems: 'center',
     marginBottom: 16,
   },

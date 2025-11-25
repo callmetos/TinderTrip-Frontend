@@ -41,6 +41,8 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
   const [confirming, setConfirming] = useState(false);
   const [eventId, setEventId] = useState(propEventId);
   const [eventTitle, setEventTitle] = useState(propEventTitle);
+  const [previousConfirmedCount, setPreviousConfirmedCount] = useState(0);
+  const [confirmedUserIds, setConfirmedUserIds] = useState(new Set());
   
   const flatListRef = useRef(null);
   const lastMessageIdRef = useRef(null);
@@ -88,6 +90,10 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
       // Poll every 2 seconds for new messages
       pollingIntervalRef.current = setInterval(() => {
         fetchMessagesQuietly();
+        // Also poll event data to detect new confirmations
+        if (eventId) {
+          fetchEventData();
+        }
       }, 2000);
 
       return () => {
@@ -99,7 +105,7 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
         }
       };
     }
-  }, [visible, roomId]);
+  }, [visible, roomId, eventId, confirmedUserIds]);
 
   // Handle swipe gesture
   const onGestureEvent = Animated.event(
@@ -257,6 +263,54 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
       console.log('ChatRoomModal - Fetching event details for eventId:', eventId);
       const response = await api.get(`/api/v1/events/${eventId}`);
       const data = response.data?.data || response.data;
+      
+      // Calculate confirmed count and get member details
+      const confirmedMembers = data.members?.filter(m => m.status === 'confirmed') || [];
+      const currentConfirmedCount = confirmedMembers.length || data.member_count || 0;
+      
+      // Check if someone new confirmed by comparing user IDs
+      const currentConfirmedUserIds = new Set(confirmedMembers.map(m => m.user_id));
+      
+      // Find newly confirmed users (not in previous set)
+      const newlyConfirmedUsers = confirmedMembers.filter(
+        member => !confirmedUserIds.has(member.user_id)
+      );
+      
+      // Only send notifications if we have previous data and there are new confirmations
+      // AND it's not the current user (to avoid duplicate when user confirms themselves)
+      if (confirmedUserIds.size > 0 && newlyConfirmedUsers.length > 0) {
+        console.log(`✅ ${newlyConfirmedUsers.length} new confirmation(s) detected!`);
+        
+        // Send notification to chat history for each new confirmation
+        for (const member of newlyConfirmedUsers) {
+          // Skip if it's the current user (already sent in handleConfirmAttendance)
+          if (String(member.user_id) === String(currentUserId)) {
+            console.log('Skipping notification for current user');
+            continue;
+          }
+          
+          const userName = member.user?.display_name || member.user?.full_name || member.user?.username || 'Someone';
+          
+          try {
+            const notificationBody = `${userName} confirmed attendance! 🎉`;
+            
+            await api.post(`/api/v1/chat/rooms/${roomId}/messages`, {
+              room_id: roomId,
+              body: notificationBody
+            });
+            
+            console.log(`✅ Sent notification to chat history for: ${userName}`);
+          } catch (chatErr) {
+            console.error('Failed to send notification to chat:', chatErr);
+            console.error('Error details:', chatErr.response?.data);
+            // Continue with other notifications even if one fails
+          }
+        }
+      }
+      
+      // Update confirmed user IDs set for next comparison
+      setConfirmedUserIds(currentConfirmedUserIds);
+      
       setEventData(data);
       console.log('ChatRoomModal - Event data loaded:', {
         title: data.title,
@@ -264,7 +318,8 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
         is_joined: data.is_joined,
         member_count: data.member_count,
         capacity: data.capacity,
-        members: data.members?.length
+        members: data.members?.length,
+        confirmed: currentConfirmedCount
       });
       console.log('ChatRoomModal - currentUserId:', currentUserId);
     } catch (err) {
@@ -280,6 +335,24 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
       console.log('Confirming attendance for event:', eventId);
       
       await api.post(`/api/v1/events/${eventId}/confirm`);
+      
+      // Send system notification to chat history
+      try {
+        const userName = user?.display_name || user?.full_name || user?.username || 'Someone';
+        const notificationBody = `${userName} confirmed attendance! 🎉`;
+        
+        await api.post(`/api/v1/chat/rooms/${roomId}/messages`, {
+          room_id: roomId,
+          body: notificationBody,
+          message_type: 'text'
+        });
+        
+        console.log('✅ Sent confirmation notification to chat history');
+      } catch (chatErr) {
+        console.error('Failed to send notification to chat:', chatErr);
+        console.error('Error details:', chatErr.response?.data);
+        // Don't block the confirm process if notification fails
+      }
       
       // Refresh event data to get updated member count
       await fetchEventData();
@@ -341,6 +414,19 @@ export default function ChatRoomModal({ visible, onClose, roomId, eventId: propE
 
   const renderMessage = ({ item }) => {
     const isCurrentUser = String(item.sender_id) === String(currentUserId);
+    const isSystemMessage = item.message_type === 'system_notification' || item.sender_id === 'system';
+    
+    // Render system notification differently
+    if (isSystemMessage) {
+      return (
+        <View style={styles.systemMessageContainer}>
+          <View style={styles.systemMessageBadge}>
+            <Ionicons name="checkmark-done-circle" size={16} color={COLORS.redwine} />
+            <Text style={styles.systemMessageText}>{item.body}</Text>
+          </View>
+        </View>
+      );
+    }
     
     return (
       <View style={[
@@ -767,5 +853,25 @@ const styles = StyleSheet.create({
   },
   sendButtonDisabled: {
     opacity: 0.5,
+  },
+  systemMessageContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  systemMessageBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF0F0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 16,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.redwine + '20',
+  },
+  systemMessageText: {
+    fontSize: 13,
+    color: COLORS.redwine,
+    fontWeight: '600',
   },
 });
